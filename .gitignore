@@ -1,0 +1,15 @@
+# Dependencies
+app/node_modules/
+app/.expo/
+
+# API
+api/__pycache__/
+api/*.pyc
+api/.env
+api/uploads/
+api/swingcoach.db
+api/logs/
+
+# OS
+.DS_Store
+*.log
