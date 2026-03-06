@@ -1,15 +1,18 @@
 // SwingCoach Design System
 export const colors = {
-  bg:          '#0a0f19',
-  bgAlt:       '#0f1623',
-  bgCard:      '#111827',
-  teal:        '#16a085',
-  tealLight:   '#1aba9b',
-  tealDim:     'rgba(22,160,133,0.15)',
+  bg:          '#080e18',   // deep night — richer than before
+  bgAlt:       '#0d1520',
+  bgCard:      '#101c2c',
+  teal:        '#00c896',   // electric green-teal — vibrant primary
+  tealLight:   '#00e5a8',   // vivid accent / highlights
+  tealDim:     'rgba(0,200,150,0.15)',
+  tealGlow:    'rgba(0,200,150,0.30)',
+  gold:        '#f5a623',   // warm accent for stars / score rings
+  goldDim:     'rgba(245,166,35,0.15)',
   white:       '#ffffff',
   grey1:       '#cbd5e1',
   grey2:       '#64748b',
-  grey3:       '#1e2d3d',
+  grey3:       '#1a2740',   // slightly bluer dark
   error:       '#ef4444',
   warning:     '#f59e0b',
   success:     '#10b981',

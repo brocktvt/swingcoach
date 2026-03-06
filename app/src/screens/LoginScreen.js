@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
-  StyleSheet, SafeAreaView, KeyboardAvoidingView,
+  StyleSheet, KeyboardAvoidingView,
   Platform, ActivityIndicator, Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing, radius } from '../theme';
 import { useAuth } from '../hooks/useAuth';
 
@@ -21,50 +22,75 @@ export default function LoginScreen({ navigation }) {
     setLoading(true);
     try {
       await login(email.trim().toLowerCase(), password);
-      // navigation handled automatically by useAuth state change
     } catch (err) {
-      Alert.alert('Login failed', err?.response?.data?.detail || 'Check your credentials and try again.');
+      Alert.alert('Sign in failed', err?.response?.data?.detail || 'Check your credentials and try again.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <SafeAreaView style={s.safe}>
+    <SafeAreaView style={s.safe} edges={['top', 'bottom']}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={s.kav}>
+
         <View style={s.inner}>
-          <Text style={s.logo}>⛳</Text>
-          <Text style={s.title}>Welcome back</Text>
-          <Text style={s.sub}>Sign in to SwingCoach</Text>
 
-          <TextInput
-            style={s.input}
-            placeholder="Email"
-            placeholderTextColor={colors.grey2}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            value={email}
-            onChangeText={setEmail}
-          />
-          <TextInput
-            style={s.input}
-            placeholder="Password"
-            placeholderTextColor={colors.grey2}
-            secureTextEntry
-            value={password}
-            onChangeText={setPassword}
-          />
+          {/* ── Header ── */}
+          <View style={s.header}>
+            <Text style={s.wordmark}>⛳ SWINGCOACH</Text>
+            <Text style={s.title}>Welcome back</Text>
+            <Text style={s.sub}>Sign in to your account</Text>
+          </View>
 
-          <TouchableOpacity style={s.btnPrimary} onPress={handleLogin} disabled={loading}>
-            {loading
-              ? <ActivityIndicator color={colors.white} />
-              : <Text style={s.btnPrimaryText}>Sign In</Text>
-            }
+          {/* ── Form ── */}
+          <View style={s.form}>
+            <View style={s.inputWrap}>
+              <Text style={s.label}>EMAIL</Text>
+              <TextInput
+                style={s.input}
+                placeholder="you@email.com"
+                placeholderTextColor={colors.grey2}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                autoCorrect={false}
+                value={email}
+                onChangeText={setEmail}
+              />
+            </View>
+
+            <View style={s.inputWrap}>
+              <Text style={s.label}>PASSWORD</Text>
+              <TextInput
+                style={s.input}
+                placeholder="••••••••"
+                placeholderTextColor={colors.grey2}
+                secureTextEntry
+                value={password}
+                onChangeText={setPassword}
+              />
+            </View>
+
+            <TouchableOpacity
+              style={[s.btnPrimary, loading && { opacity: 0.7 }]}
+              onPress={handleLogin}
+              disabled={loading}
+              activeOpacity={0.85}
+            >
+              {loading
+                ? <ActivityIndicator color={colors.bg} />
+                : <Text style={s.btnPrimaryText}>Sign In</Text>
+              }
+            </TouchableOpacity>
+          </View>
+
+          {/* ── Footer link ── */}
+          <TouchableOpacity style={s.footerLink} onPress={() => navigation.replace('Register')}>
+            <Text style={s.footerText}>
+              Don't have an account?{' '}
+              <Text style={s.footerAccent}>Sign up free</Text>
+            </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={s.link} onPress={() => navigation.replace('Register')}>
-            <Text style={s.linkText}>Don't have an account? <Text style={{ color: colors.tealLight }}>Sign up free</Text></Text>
-          </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -72,30 +98,75 @@ export default function LoginScreen({ navigation }) {
 }
 
 const s = StyleSheet.create({
-  safe:         { flex: 1, backgroundColor: colors.bg },
-  kav:          { flex: 1 },
-  inner:        { flex: 1, justifyContent: 'center', paddingHorizontal: spacing.lg },
-  logo:         { fontSize: 48, textAlign: 'center', marginBottom: spacing.lg },
-  title:        { fontSize: 28, fontWeight: '800', color: colors.white, textAlign: 'center' },
-  sub:          { fontSize: 14, color: colors.grey2, textAlign: 'center', marginBottom: spacing.xl },
+  safe:  { flex: 1, backgroundColor: colors.bg },
+  kav:   { flex: 1 },
+  inner: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.lg,
+    gap: spacing.xl,
+  },
+
+  // ── Header ──
+  header: { alignItems: 'center', gap: spacing.sm },
+  wordmark: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 2.5,
+    color: colors.tealLight,
+  },
+  title: {
+    fontSize: 30,
+    fontWeight: '800',
+    color: colors.white,
+    marginTop: spacing.sm,
+  },
+  sub: {
+    fontSize: 14,
+    color: colors.grey2,
+  },
+
+  // ── Form ──
+  form: { gap: spacing.md },
+  inputWrap: { gap: 6 },
+  label: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1.5,
+    color: colors.grey2,
+    paddingLeft: 2,
+  },
   input: {
     backgroundColor: colors.bgCard,
     borderWidth: 1,
     borderColor: colors.grey3,
     borderRadius: radius.md,
-    padding: spacing.md,
+    paddingVertical: 14,
+    paddingHorizontal: spacing.md,
     color: colors.white,
     fontSize: 15,
-    marginBottom: spacing.md,
   },
   btnPrimary: {
     backgroundColor: colors.teal,
     borderRadius: radius.md,
-    paddingVertical: 16,
+    paddingVertical: 17,
     alignItems: 'center',
     marginTop: spacing.sm,
+    shadowColor: colors.teal,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.45,
+    shadowRadius: 10,
+    elevation: 6,
   },
-  btnPrimaryText: { color: colors.white, fontSize: 16, fontWeight: '700' },
-  link:           { marginTop: spacing.lg, alignItems: 'center' },
-  linkText:       { color: colors.grey2, fontSize: 14 },
+  btnPrimaryText: {
+    color: colors.bg,
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+
+  // ── Footer ──
+  footerLink: { alignItems: 'center' },
+  footerText: { color: colors.grey2, fontSize: 14 },
+  footerAccent: { color: colors.tealLight, fontWeight: '700' },
 });
