@@ -220,7 +220,7 @@ export default function OnboardingScreen({ navigation }) {
 
         {/* Brand + skip */}
         <View style={s.brandRow}>
-          <Text style={s.brandMark}>⛳ SWINGCOACH</Text>
+          <Text style={s.brandMark}>⛳ POCKET GOLF COACH</Text>
           {!isLast && (
             <TouchableOpacity onPress={() => navigation.replace('Login')}>
               <Text style={s.skip}>Skip</Text>

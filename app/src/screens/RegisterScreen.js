@@ -49,7 +49,7 @@ export default function RegisterScreen({ navigation }) {
 
           {/* ── Header ── */}
           <View style={s.header}>
-            <Text style={s.wordmark}>⛳ SWINGCOACH</Text>
+            <Text style={s.wordmark}>⛳ POCKET GOLF COACH</Text>
             <Text style={s.title}>Create your account</Text>
             <View style={s.pillRow}>
               <View style={s.pill}><Text style={s.pillText}>✓ 5 free analyses/mo</Text></View>

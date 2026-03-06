@@ -86,10 +86,10 @@ export default function ProfileScreen({ navigation }) {
         </Section>
 
         <Section title="App">
-          <Row label="Rate SwingCoach"   onPress={() => Alert.alert('Coming soon', 'App Store/Play Store rating link will be added at launch.')} />
-          <Row label="Send Feedback"     onPress={() => Alert.alert('Coming soon', 'In-app feedback form coming soon.')} />
-          <Row label="Privacy Policy"    onPress={() => Alert.alert('Privacy Policy', 'Available at swingcoach.app/privacy')} />
-          <Row label="Terms of Service"  onPress={() => Alert.alert('Terms', 'Available at swingcoach.app/terms')} />
+          <Row label="Rate Pocket Golf Coach" onPress={() => Alert.alert('Coming soon', 'App Store/Play Store rating link will be added at launch.')} />
+          <Row label="Send Feedback"         onPress={() => Alert.alert('Coming soon', 'In-app feedback form coming soon.')} />
+          <Row label="Privacy Policy"        onPress={() => Alert.alert('Privacy Policy', 'Available at pocketgolfcoach.app/privacy')} />
+          <Row label="Terms of Service"      onPress={() => Alert.alert('Terms', 'Available at pocketgolfcoach.app/terms')} />
           <Row label="Version"           value="1.0.0 (beta)" />
         </Section>
 

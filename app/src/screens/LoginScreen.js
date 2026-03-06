@@ -37,7 +37,7 @@ export default function LoginScreen({ navigation }) {
 
           {/* ── Header ── */}
           <View style={s.header}>
-            <Text style={s.wordmark}>⛳ SWINGCOACH</Text>
+            <Text style={s.wordmark}>⛳ POCKET GOLF COACH</Text>
             <Text style={s.title}>Welcome back</Text>
             <Text style={s.sub}>Sign in to your account</Text>
           </View>
