@@ -1,7 +1,4 @@
 {
-  "cli": {
-    "version": ">= 12.0.0"
-  },
   "build": {
     "development": {
       "developmentClient": true,
@@ -15,15 +12,6 @@
     },
     "production": {
       "autoIncrement": true
-    }
-  },
-  "submit": {
-    "production": {
-      "ios": {
-        "appleId": "",
-        "ascAppId": "",
-        "appleTeamId": ""
-      }
     }
   }
 }
