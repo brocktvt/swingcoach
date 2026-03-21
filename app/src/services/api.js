@@ -9,8 +9,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // ── Config ──────────────────────────────────────────────────────────────────
 export const API_BASE_URL = __DEV__
-  ? 'http://localhost:8000'          // local dev
-  : 'https://api.swingcoach.app';    // production (update when deployed)
+  ? 'http://localhost:8000'                               // local dev
+  : 'https://swingcoach-production.up.railway.app';      // Railway
 
 const client = axios.create({
   baseURL: API_BASE_URL,
