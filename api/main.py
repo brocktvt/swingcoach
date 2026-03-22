@@ -13,7 +13,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from models.db import create_tables
+from models.db import create_tables, run_migrations
 from routers.auth    import router as auth_router
 from routers.analyze import router as analyze_router
 from routers.profile import router as profile_router
@@ -53,6 +53,7 @@ async def debug_exception_handler(request: Request, exc: Exception):
 @app.on_event("startup")
 async def startup():
     await create_tables()
+    await run_migrations()
 
 
 @app.get("/health")

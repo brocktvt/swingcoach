@@ -1,11 +1,14 @@
 """
 models/db.py — SQLAlchemy database models
 """
+import logging
 from datetime import datetime
-from sqlalchemy import Column, String, Integer, Float, DateTime, Boolean, Text, ForeignKey
+from sqlalchemy import Column, String, Integer, Float, DateTime, Boolean, Text, ForeignKey, text
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 from config import settings
+
+log = logging.getLogger(__name__)
 
 Base = declarative_base()
 engine = create_async_engine(settings.database_url, echo=False)
@@ -18,6 +21,27 @@ async def get_db():
 async def create_tables():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+
+# ── Schema migrations ─────────────────────────────────────────────────────────
+# ADD new entries here whenever a column is added to an existing table.
+# ALTER TABLE ... ADD COLUMN IF NOT EXISTS is idempotent — safe to run every startup.
+_MIGRATIONS = [
+    # user_profiles: secondary_goal added after initial deploy
+    "ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS secondary_goal VARCHAR",
+    # user_profiles: ensure the whole table exists even if create_all missed it
+    # (the CREATE TABLE is handled by create_all above; these are column-level safety nets)
+]
+
+async def run_migrations():
+    """Apply any pending column-level migrations. Safe to call on every startup."""
+    async with engine.begin() as conn:
+        for sql in _MIGRATIONS:
+            try:
+                await conn.execute(text(sql))
+                log.info(f"Migration OK: {sql[:60]}")
+            except Exception as e:
+                log.warning(f"Migration skipped ({sql[:60]}): {e}")
 
 
 class User(Base):

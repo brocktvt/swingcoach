@@ -135,6 +135,14 @@
 - Could allow multiple goals selected in order of priority
 - Questions to resolve: how many goals before the onboarding feels like a survey? Probably max 2 selected at once.
 
+## 16. AI-Generated "Fictional Pro" Reference Video
+- Goal: a photorealistic fictional golfer (no IP issues) performing the exact biomechanics of a real tour pro, for use as a side-by-side reference
+- Two-track approach:
+  - **Near-term — 3D avatar from motion data** (buildable now): Use tools like MotionBERT or 4D-Humans to lift 2D pose estimates (from existing pro footage or stock video) into a 3D skeleton, then render as a polished 3D character in a golf environment. Same character identity every time, no uncanny valley, zero IP risk. Think Sportsbox AI's stick figure but visually polished.
+  - **Longer-term — AI photorealistic video** (12–18 months out): Use motion-guided video generation (Runway Gen-3, Kling AI, or successor tools) seeded with a pose skeleton to generate a realistic person performing that motion. The key unsolved problem today is consistent character identity across multiple clips — the same "pro" must look identical at address, top of backswing, and impact. This is actively being worked on but not reliably solved yet.
+- Legal note: generating AI video that looks like a *specific named pro* is right-of-publicity territory regardless of technology used. The character must be fictional — same mechanics, invented appearance.
+- Recommended path: ship 3D avatar first (high feasibility now), plan photorealistic as a premium feature once character consistency matures in 2026+
+
 ## 3. Onboarding Background Video
 - Replace (or layer behind) the current animated stick figure golfer with a real dimmed video of someone hitting a shot in a golf simulator
 - Questions to resolve:
