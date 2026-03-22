@@ -26,3 +26,9 @@ class Settings(BaseSettings):
         env_file = ".env"
 
 settings = Settings()
+
+# Railway sets DATABASE_URL as postgresql:// but SQLAlchemy async needs postgresql+asyncpg://
+if settings.database_url.startswith("postgresql://"):
+    settings.database_url = settings.database_url.replace(
+        "postgresql://", "postgresql+asyncpg://", 1
+    )
