@@ -140,7 +140,9 @@ async def generate_feedback(pose_data: dict, pro_id: str, club_type: str) -> dic
     """
     Send pose data to Claude and return structured feedback.
     """
-    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+    # Let the SDK read ANTHROPIC_API_KEY from the environment directly
+    # rather than passing through pydantic settings (which may return "")
+    client = anthropic.Anthropic()
     prompt = build_prompt(pose_data, pro_id, club_type)
 
     log.info(f"Requesting feedback from Claude (pro={pro_id}, club={club_type})")
