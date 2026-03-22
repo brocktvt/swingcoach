@@ -7,12 +7,18 @@ Run locally:
 Production:
     uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4
 """
-from fastapi import FastAPI
+import traceback
+import logging
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from models.db import create_tables
 from routers.auth    import router as auth_router
 from routers.analyze import router as analyze_router
+
+log = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 app = FastAPI(
     title="SwingCoach API",
@@ -30,6 +36,16 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(analyze_router)
+
+
+@app.exception_handler(Exception)
+async def debug_exception_handler(request: Request, exc: Exception):
+    tb = traceback.format_exc()
+    log.error(f"Unhandled exception on {request.url}: {exc}\n{tb}")
+    return JSONResponse(
+        status_code=500,
+        content={"detail": str(exc), "type": type(exc).__name__, "trace": tb},
+    )
 
 
 @app.on_event("startup")
