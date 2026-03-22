@@ -110,6 +110,7 @@ async def analyze_swing(
             "weight_lbs":      profile_row.weight_lbs,
             "handedness":      profile_row.handedness,
             "primary_goal":    profile_row.primary_goal,
+            "secondary_goal":  profile_row.secondary_goal,
         }
 
     # Get Claude feedback

@@ -28,7 +28,8 @@ class ProfileUpdate(BaseModel):
     height_in:       Optional[float]  = Field(None, ge=36, le=96,  description="Height in total inches (e.g. 5'10\" = 70)")
     weight_lbs:      Optional[float]  = Field(None, ge=60, le=500)
     handedness:      Optional[str]    = Field("right", pattern="^(right|left)$")
-    primary_goal:    Optional[str]    = Field(None, pattern="^(distance|consistency|short_game|course_management)$")
+    primary_goal:    Optional[str]    = Field(None, pattern="^(hit_further|iron_accuracy|chipping|fix_shape|consistency|scoring|putting)$")
+    secondary_goal:  Optional[str]    = Field(None, pattern="^(hit_further|iron_accuracy|chipping|fix_shape|consistency|scoring|putting)$")
 
 
 # ── Suggested-pro algorithm ───────────────────────────────────────────────────
@@ -58,6 +59,7 @@ def suggest_pro(
     height_in:       Optional[float],
     weight_lbs:      Optional[float],
     primary_goal:    Optional[str],
+    secondary_goal:  Optional[str] = None,
 ) -> str:
     """
     Score each pro based on how well they match the golfer's characteristics.
@@ -104,19 +106,22 @@ def suggest_pro(
             scores["nelly_korda"]  += 1
 
     # ── Primary goal ──────────────────────────────────────────────────────────
-    if primary_goal == "distance":
+    if primary_goal in ("hit_further",):
         scores["rory_mcilroy"] += 3
         scores["jon_rahm"]     += 2
         scores["tiger_woods"]  += 1
-    elif primary_goal == "consistency":
+    elif primary_goal in ("consistency", "iron_accuracy"):
         scores["adam_scott"]   += 3
         scores["nelly_korda"]  += 3
-    elif primary_goal == "short_game":
+    elif primary_goal in ("chipping", "putting"):
         scores["tiger_woods"]  += 3   # Tiger's short game is legendary
         scores["adam_scott"]   += 1
-    elif primary_goal == "course_management":
+    elif primary_goal in ("scoring",):
         scores["tiger_woods"]  += 3
         scores["adam_scott"]   += 1
+    elif primary_goal in ("fix_shape",):
+        scores["tiger_woods"]  += 2   # Tiger's ball-flight control is textbook
+        scores["adam_scott"]   += 2
 
     # ── Age ───────────────────────────────────────────────────────────────────
     if age:
@@ -129,6 +134,20 @@ def suggest_pro(
         elif age <= 28:             # young players often want power
             scores["rory_mcilroy"] += 1
             scores["jon_rahm"]     += 1
+
+    # ── Secondary goal (half weight) ──────────────────────────────────────────
+    if secondary_goal and secondary_goal != primary_goal:
+        if secondary_goal in ("hit_further",):
+            scores["rory_mcilroy"] += 1
+            scores["jon_rahm"]     += 1
+        elif secondary_goal in ("consistency", "iron_accuracy"):
+            scores["adam_scott"]   += 1
+            scores["nelly_korda"]  += 1
+        elif secondary_goal in ("chipping", "putting"):
+            scores["tiger_woods"]  += 1
+        elif secondary_goal in ("fix_shape",):
+            scores["tiger_woods"]  += 1
+            scores["adam_scott"]   += 1
 
     best = max(scores, key=lambda k: scores[k])
     return best
@@ -144,8 +163,9 @@ def _profile_response(profile: Optional[UserProfile], suggested: str) -> dict:
         "age":             profile.age             if profile else None,
         "height_in":       profile.height_in       if profile else None,
         "weight_lbs":      profile.weight_lbs      if profile else None,
-        "handedness":      profile.handedness      if profile else "right",
-        "primary_goal":    profile.primary_goal    if profile else None,
+        "handedness":      profile.handedness       if profile else "right",
+        "primary_goal":    profile.primary_goal     if profile else None,
+        "secondary_goal":  profile.secondary_goal   if profile else None,
         "suggested_pro": {
             "id":           suggested,
             "name":         pro.get("name", suggested),
@@ -195,6 +215,7 @@ async def update_profile(
         height_in=profile.height_in,
         weight_lbs=profile.weight_lbs,
         primary_goal=profile.primary_goal,
+        secondary_goal=profile.secondary_goal,
     )
     profile.suggested_pro = suggested
     profile.updated_at    = datetime.utcnow()

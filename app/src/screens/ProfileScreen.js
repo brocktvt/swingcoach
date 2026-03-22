@@ -89,10 +89,13 @@ function inToFeetInches(totalIn) {
 }
 
 const GOAL_LABELS = {
-  distance: 'Distance',
-  consistency: 'Consistency',
-  short_game: 'Short game',
-  course_management: 'Course management',
+  hit_further:   'Hit it further',
+  iron_accuracy: 'Iron accuracy',
+  chipping:      'Chipping & pitching',
+  fix_shape:     'Fix my slice/hook',
+  consistency:   'Consistency',
+  scoring:       'Lower my scores',
+  putting:       'Putting',
 };
 
 // ── Main screen ───────────────────────────────────────────────────────────────
@@ -115,8 +118,9 @@ export default function ProfileScreen({ navigation }) {
   const [heightFeet,   setHeightFeet]   = useState('');
   const [heightInches, setHeightInches] = useState('');
   const [weight,       setWeight]       = useState('');
-  const [handedness,   setHandedness]   = useState('right');
-  const [goal,         setGoal]         = useState(null);
+  const [handedness,      setHandedness]      = useState('right');
+  const [goal,            setGoal]            = useState(null);
+  const [secondaryGoal,   setSecondaryGoal]   = useState(null);
 
   const loadProfile = useCallback(async () => {
     try {
@@ -132,6 +136,7 @@ export default function ProfileScreen({ navigation }) {
       setWeight(data.weight_lbs != null ? String(data.weight_lbs) : '');
       setHandedness(data.handedness || 'right');
       setGoal(data.primary_goal || null);
+      setSecondaryGoal(data.secondary_goal || null);
     } catch {
       // No profile yet — that's fine
     } finally {
@@ -151,7 +156,8 @@ export default function ProfileScreen({ navigation }) {
       if (age !== '')       payload.age             = parseInt(age, 10);
       if (heightIn > 0)     payload.height_in       = heightIn;
       if (weight !== '')    payload.weight_lbs      = parseFloat(weight);
-      if (goal)             payload.primary_goal    = goal;
+      if (goal)                                    payload.primary_goal   = goal;
+      if (secondaryGoal && secondaryGoal !== goal) payload.secondary_goal = secondaryGoal;
 
       const updated = await profileApi.save(payload);
       setGolferProfile(updated);
@@ -171,10 +177,13 @@ export default function ProfileScreen({ navigation }) {
   };
 
   const goalOptions = [
-    { label: 'Distance',    value: 'distance' },
-    { label: 'Consistency', value: 'consistency' },
-    { label: 'Short game',  value: 'short_game' },
-    { label: 'Course mgmt', value: 'course_management' },
+    { label: 'Hit it further',    value: 'hit_further' },
+    { label: 'Iron accuracy',     value: 'iron_accuracy' },
+    { label: 'Chipping & pitching', value: 'chipping' },
+    { label: 'Fix my slice/hook', value: 'fix_shape' },
+    { label: 'Consistency',       value: 'consistency' },
+    { label: 'Lower my scores',   value: 'scoring' },
+    { label: 'Putting',           value: 'putting' },
   ];
 
   const handednessOptions = [
@@ -241,7 +250,8 @@ export default function ProfileScreen({ navigation }) {
                 </View>
               </View>
               <EditRow label="Weight" value={weight} placeholder="e.g. 185" onChangeText={setWeight} keyboardType="decimal-pad" unit="lbs" />
-              <ChipRow label="Primary goal" options={goalOptions} value={goal} onChange={setGoal} />
+              <ChipRow label="Primary goal" options={goalOptions} value={goal} onChange={(v) => { setGoal(v); if (secondaryGoal === v) setSecondaryGoal(null); }} />
+              <ChipRow label="Also working on (optional)" options={goalOptions.filter(o => o.value !== goal)} value={secondaryGoal} onChange={(v) => setSecondaryGoal(secondaryGoal === v ? null : v)} />
               <View style={s.editActions}>
                 <TouchableOpacity style={s.cancelBtn} onPress={() => { setEditing(false); loadProfile(); }}>
                   <Text style={s.cancelBtnText}>Cancel</Text>
@@ -265,6 +275,7 @@ export default function ProfileScreen({ navigation }) {
               )}
               {golferProfile.weight_lbs != null && <Row label="Weight" value={`${golferProfile.weight_lbs} lbs`} />}
               {golferProfile.primary_goal && <Row label="Primary goal" value={GOAL_LABELS[golferProfile.primary_goal] || golferProfile.primary_goal} />}
+              {golferProfile.secondary_goal && <Row label="Also working on" value={GOAL_LABELS[golferProfile.secondary_goal] || golferProfile.secondary_goal} />}
             </View>
           ) : (
             <TouchableOpacity style={s.emptyProfile} onPress={() => setEditing(true)}>

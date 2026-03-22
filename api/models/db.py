@@ -48,7 +48,8 @@ class UserProfile(Base):
     height_in       = Column(Float,   nullable=True)   # total inches (e.g. 5'10" = 70)
     weight_lbs      = Column(Float,   nullable=True)
     handedness      = Column(String,  default="right") # "right" | "left"
-    primary_goal    = Column(String,  nullable=True)   # "distance"|"consistency"|"short_game"|"course_management"
+    primary_goal    = Column(String,  nullable=True)   # see GOAL_VALUES in profile.py
+    secondary_goal  = Column(String,  nullable=True)   # optional second priority
     suggested_pro   = Column(String,  nullable=True)   # computed on save
     updated_at      = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

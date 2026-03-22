@@ -118,14 +118,34 @@ def _golfer_profile_block(profile: dict | None) -> str:
     if profile.get("handedness"):
         lines.append(f"  Handedness: {profile['handedness']}-handed")
 
+    GOAL_LABELS = {
+        "hit_further":    "hit the ball further / more distance",
+        "iron_accuracy":  "more accurate with irons",
+        "chipping":       "better chipping and pitching",
+        "fix_shape":      "fix ball flight shape (slice/hook)",
+        "consistency":    "more consistent ball-striking",
+        "scoring":        "lower scores / smarter course management",
+        "putting":        "improve putting",
+    }
+    GOAL_FOCUS = {
+        "hit_further":    "Prioritise hip rotation at impact, lag in the downswing, and width of arc. Emphasise power generation mechanics.",
+        "iron_accuracy":  "Focus on spine angle consistency through the swing, face control at impact, and ball-first contact. De-emphasise power.",
+        "chipping":       "Emphasise address setup (weight forward, shaft lean), lead wrist angle, and quiet lower body. Follow-through is key.",
+        "fix_shape":      "Focus on swing path direction, face-to-path relationship, and hip rotation sequence. Identify what's causing the shape fault.",
+        "consistency":    "Focus on spine angle maintenance, tempo through all phases, and repeatable impact position.",
+        "scoring":        "Highlight the 1-2 changes with the highest scoring impact. Mention course-management implications of swing tendencies.",
+        "putting":        "Note that putting mechanics differ from full swing — flag if full-swing posture habits may be carrying into their putting stroke.",
+    }
+
     if profile.get("primary_goal"):
-        goal_labels = {
-            "distance": "more distance",
-            "consistency": "consistency and accuracy",
-            "short_game": "short game / scoring",
-            "course_management": "course management / lower scores",
-        }
-        lines.append(f"  Primary goal: {goal_labels.get(profile['primary_goal'], profile['primary_goal'])}")
+        g = profile["primary_goal"]
+        lines.append(f"  Primary goal: {GOAL_LABELS.get(g, g)}")
+        if g in GOAL_FOCUS:
+            lines.append(f"  → Coaching focus: {GOAL_FOCUS[g]}")
+
+    if profile.get("secondary_goal") and profile.get("secondary_goal") != profile.get("primary_goal"):
+        g2 = profile["secondary_goal"]
+        lines.append(f"  Secondary goal: {GOAL_LABELS.get(g2, g2)}")
 
     return "\n".join(lines)
 
