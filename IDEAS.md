@@ -114,6 +114,27 @@
 - Once we have video, run it through the same MediaPipe pipeline to extract real angle benchmarks — much more accurate than hand-authored numbers
 - Side-by-side stills (#8) become far more compelling once we have actual pro frames to show
 
+## 14. Technology Partners to Evaluate
+- **Sportsbox AI** (sportsbox.ai): Does markerless 3D motion analysis from a single 2D video — extract turn, bend, side-bend, sway, lift as full 3D kinematics. Potentially a much richer data source than MediaPipe. May have a B2B/enterprise API — contact support@sportsbox.ai to ask. If available, swapping our MediaPipe pipeline for their engine would be a major quality upgrade.
+- **V1 Golf / V1 Sports** (v1sports.com): Has a large licensed library of PGA/LIV/LPGA professional swing videos with skeletal tracking. Closed ecosystem — no public API. Worth a cold email to explore a content licensing or data partnership.
+- **Swing Profile** (swingprofile.com): Similar consumer app with auto swing detection and auto trim already solved. Useful as competitive reference. No public API.
+- **Commission a teaching pro**: Hire a PGA teaching pro for a half-day, film them in proper side-on and DTL angles with all club types, run through our MediaPipe pipeline → real measured angle benchmarks to replace hand-authored numbers. Estimated cost $500–1,000. Highest ROI path to accurate pro reference data.
+
+## 15. Expanded Goal Profiles in Golfer Onboarding
+- Current primary_goal options: distance, consistency, short_game, course_management
+- Expand to more granular, relatable goals a golfer would actually say:
+  - "Hit the ball further" (distance / driver)
+  - "More accurate with my irons"
+  - "Better chipping and pitching"
+  - "Fix my slice / hook"
+  - "More consistent ball-striking"
+  - "Lower my score / better course management"
+  - "Improve my putting"
+- Use the goal in Claude's prompt to focus analysis on the most relevant swing phases
+  (e.g., a chipping goal = emphasise address setup and follow-through; distance = hip rotation and lag at impact)
+- Could allow multiple goals selected in order of priority
+- Questions to resolve: how many goals before the onboarding feels like a survey? Probably max 2 selected at once.
+
 ## 3. Onboarding Background Video
 - Replace (or layer behind) the current animated stick figure golfer with a real dimmed video of someone hitting a shot in a golf simulator
 - Questions to resolve:

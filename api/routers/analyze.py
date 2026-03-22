@@ -88,7 +88,7 @@ async def analyze_swing(
         video_path.unlink(missing_ok=True)
         raise HTTPException(status_code=422, detail=f"Could not process video: {e}")
 
-    if not pose_data["phases"]:
+    if not pose_data.get("frames") and not pose_data.get("phases_summary"):
         video_path.unlink(missing_ok=True)
         raise HTTPException(
             status_code=422,
