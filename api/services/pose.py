@@ -17,6 +17,7 @@ Swing detection strategy:
 """
 import cv2
 import math
+import base64
 import logging
 import mediapipe as mp
 
@@ -109,6 +110,127 @@ def _extract_angles(landmarks) -> dict:
     except Exception as e:
         log.warning(f"Angle extraction partial failure: {e}")
         return {}
+
+
+# ── Skeleton connections to draw ─────────────────────────────────────────────
+_SKELETON_CONNECTIONS = [
+    (mp_pose.PoseLandmark.LEFT_SHOULDER,  mp_pose.PoseLandmark.RIGHT_SHOULDER),
+    (mp_pose.PoseLandmark.LEFT_SHOULDER,  mp_pose.PoseLandmark.LEFT_ELBOW),
+    (mp_pose.PoseLandmark.LEFT_ELBOW,     mp_pose.PoseLandmark.LEFT_WRIST),
+    (mp_pose.PoseLandmark.RIGHT_SHOULDER, mp_pose.PoseLandmark.RIGHT_ELBOW),
+    (mp_pose.PoseLandmark.RIGHT_ELBOW,    mp_pose.PoseLandmark.RIGHT_WRIST),
+    (mp_pose.PoseLandmark.LEFT_SHOULDER,  mp_pose.PoseLandmark.LEFT_HIP),
+    (mp_pose.PoseLandmark.RIGHT_SHOULDER, mp_pose.PoseLandmark.RIGHT_HIP),
+    (mp_pose.PoseLandmark.LEFT_HIP,       mp_pose.PoseLandmark.RIGHT_HIP),
+    (mp_pose.PoseLandmark.LEFT_HIP,       mp_pose.PoseLandmark.LEFT_KNEE),
+    (mp_pose.PoseLandmark.LEFT_KNEE,      mp_pose.PoseLandmark.LEFT_ANKLE),
+    (mp_pose.PoseLandmark.RIGHT_HIP,      mp_pose.PoseLandmark.RIGHT_KNEE),
+    (mp_pose.PoseLandmark.RIGHT_KNEE,     mp_pose.PoseLandmark.RIGHT_ANKLE),
+    (mp_pose.PoseLandmark.LEFT_SHOULDER,  mp_pose.PoseLandmark.LEFT_EAR),
+    (mp_pose.PoseLandmark.RIGHT_SHOULDER, mp_pose.PoseLandmark.RIGHT_EAR),
+]
+
+# Key joints to draw as circles
+_KEY_JOINTS = [
+    mp_pose.PoseLandmark.NOSE,
+    mp_pose.PoseLandmark.LEFT_SHOULDER,  mp_pose.PoseLandmark.RIGHT_SHOULDER,
+    mp_pose.PoseLandmark.LEFT_ELBOW,     mp_pose.PoseLandmark.RIGHT_ELBOW,
+    mp_pose.PoseLandmark.LEFT_WRIST,     mp_pose.PoseLandmark.RIGHT_WRIST,
+    mp_pose.PoseLandmark.LEFT_HIP,       mp_pose.PoseLandmark.RIGHT_HIP,
+    mp_pose.PoseLandmark.LEFT_KNEE,      mp_pose.PoseLandmark.RIGHT_KNEE,
+    mp_pose.PoseLandmark.LEFT_ANKLE,     mp_pose.PoseLandmark.RIGHT_ANKLE,
+]
+
+# Phase → joints to highlight in orange (most relevant to that phase)
+_PHASE_HIGHLIGHT_JOINTS = {
+    "address":      [mp_pose.PoseLandmark.LEFT_HIP, mp_pose.PoseLandmark.RIGHT_HIP,
+                     mp_pose.PoseLandmark.LEFT_SHOULDER, mp_pose.PoseLandmark.RIGHT_SHOULDER,
+                     mp_pose.PoseLandmark.LEFT_KNEE, mp_pose.PoseLandmark.RIGHT_KNEE],
+    "takeaway":     [mp_pose.PoseLandmark.RIGHT_ELBOW, mp_pose.PoseLandmark.RIGHT_WRIST,
+                     mp_pose.PoseLandmark.RIGHT_SHOULDER, mp_pose.PoseLandmark.LEFT_SHOULDER],
+    "top":          [mp_pose.PoseLandmark.LEFT_ELBOW, mp_pose.PoseLandmark.LEFT_WRIST,
+                     mp_pose.PoseLandmark.LEFT_SHOULDER, mp_pose.PoseLandmark.LEFT_HIP,
+                     mp_pose.PoseLandmark.RIGHT_HIP],
+    "downswing":    [mp_pose.PoseLandmark.LEFT_HIP, mp_pose.PoseLandmark.RIGHT_HIP,
+                     mp_pose.PoseLandmark.LEFT_KNEE, mp_pose.PoseLandmark.LEFT_ELBOW],
+    "impact":       [mp_pose.PoseLandmark.LEFT_HIP, mp_pose.PoseLandmark.RIGHT_HIP,
+                     mp_pose.PoseLandmark.LEFT_WRIST, mp_pose.PoseLandmark.LEFT_KNEE,
+                     mp_pose.PoseLandmark.RIGHT_KNEE],
+    "follow_through":[mp_pose.PoseLandmark.LEFT_SHOULDER, mp_pose.PoseLandmark.RIGHT_SHOULDER,
+                      mp_pose.PoseLandmark.LEFT_HIP, mp_pose.PoseLandmark.RIGHT_HIP,
+                      mp_pose.PoseLandmark.LEFT_ELBOW],
+    "finish":       [mp_pose.PoseLandmark.LEFT_SHOULDER, mp_pose.PoseLandmark.RIGHT_SHOULDER,
+                     mp_pose.PoseLandmark.LEFT_HIP, mp_pose.PoseLandmark.RIGHT_HIP,
+                     mp_pose.PoseLandmark.LEFT_KNEE],
+}
+
+
+def _annotate_frame(frame: "np.ndarray", landmarks, phase_name: str) -> str:
+    """
+    Draw the MediaPipe skeleton on a video frame and return a base64-encoded JPEG.
+
+    - Skeleton connections: thin teal lines
+    - All key joints: small white-outlined teal dots
+    - Phase-relevant joints: larger orange circles to draw the eye
+
+    Returns base64 JPEG string, or empty string on failure.
+    """
+    try:
+        h, w = frame.shape[:2]
+
+        # Resize to max 640px wide to keep payload manageable
+        max_w = 640
+        if w > max_w:
+            scale = max_w / w
+            frame = cv2.resize(frame, (max_w, int(h * scale)), interpolation=cv2.INTER_AREA)
+            h, w = frame.shape[:2]
+
+        annotated = frame.copy()
+        lm = landmarks.landmark
+        highlight_set = set(_PHASE_HIGHLIGHT_JOINTS.get(phase_name, []))
+
+        # Draw skeleton connections — teal lines
+        TEAL    = (170, 178, 32)   # BGR
+        ORANGE  = (0, 128, 255)    # BGR — highlighted joints
+        WHITE   = (255, 255, 255)
+        JOINT   = (200, 220, 32)   # teal-ish
+
+        for start_lm, end_lm in _SKELETON_CONNECTIONS:
+            s = lm[start_lm]
+            e = lm[end_lm]
+            if s.visibility > 0.4 and e.visibility > 0.4:
+                sx, sy = int(s.x * w), int(s.y * h)
+                ex, ey = int(e.x * w), int(e.y * h)
+                cv2.line(annotated, (sx, sy), (ex, ey), TEAL, 2, cv2.LINE_AA)
+
+        # Draw joints
+        for joint_lm in _KEY_JOINTS:
+            pt = lm[joint_lm]
+            if pt.visibility > 0.4:
+                cx, cy = int(pt.x * w), int(pt.y * h)
+                if joint_lm in highlight_set:
+                    # Phase-relevant joint: orange circle with outline
+                    cv2.circle(annotated, (cx, cy), 9, ORANGE, -1, cv2.LINE_AA)
+                    cv2.circle(annotated, (cx, cy), 11, WHITE, 1, cv2.LINE_AA)
+                else:
+                    # Normal joint: teal dot
+                    cv2.circle(annotated, (cx, cy), 5, JOINT, -1, cv2.LINE_AA)
+                    cv2.circle(annotated, (cx, cy), 6, WHITE, 1, cv2.LINE_AA)
+
+        # Phase label in corner
+        label = phase_name.replace("_", " ").upper()
+        cv2.rectangle(annotated, (0, 0), (len(label) * 9 + 16, 28), (8, 14, 24), -1)
+        cv2.putText(annotated, label, (8, 20),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (100, 220, 200), 1, cv2.LINE_AA)
+
+        ok, buf = cv2.imencode(".jpg", annotated, [cv2.IMWRITE_JPEG_QUALITY, 72])
+        if not ok:
+            return ""
+        return base64.b64encode(buf.tobytes()).decode("utf-8")
+
+    except Exception as e:
+        log.warning(f"Frame annotation failed for phase {phase_name}: {e}")
+        return ""
 
 
 def _compute_motion_scores(cap, total_frames: int, sample_every: int):
@@ -262,6 +384,7 @@ def extract_pose_data(video_path: str) -> dict:
     result = {
         "frames":         [],
         "phases_summary": {},
+        "phase_images":   {},    # base64 JPEG per phase — annotated frame snapshot
         "frame_count":    total_frames,
         "fps":            round(fps, 1),
         "duration_s":     round(duration_s, 2),
@@ -273,6 +396,7 @@ def extract_pose_data(video_path: str) -> dict:
     # ── Step 2: Sample 25 frames within the window ────────────────────────────
     phase_counters = {}   # sample count per phase name
     phase_best     = {}   # best-visibility entry per phase name
+    phase_best_frame = {} # actual BGR frame for the best-visibility sample per phase
 
     with mp_pose.Pose(
         static_image_mode=True,
@@ -309,12 +433,20 @@ def extract_pose_data(video_path: str) -> dict:
                 "visibility": round(avg_vis, 2),
             })
 
-            # Track best-visibility frame per phase for angle_comparisons
+            # Track best-visibility frame per phase for angle_comparisons + annotated image
             if phase_name not in phase_best or avg_vis > phase_best[phase_name]["visibility"]:
                 phase_best[phase_name] = {"angles": angles, "visibility": round(avg_vis, 2)}
+                phase_best_frame[phase_name] = (frame.copy(), pr.pose_landmarks)
 
     cap.release()
     result["phases_summary"] = phase_best
+
+    # ── Step 3: Annotate the best frame for each phase ────────────────────────
+    for phase_name, (bgr_frame, landmarks) in phase_best_frame.items():
+        img_b64 = _annotate_frame(bgr_frame, landmarks, phase_name)
+        if img_b64:
+            result["phase_images"][phase_name] = img_b64
+    log.info(f"Annotated frames generated for phases: {list(result['phase_images'].keys())}")
 
     log.info(
         f"Pose extraction complete: {len(result['frames'])} frames, "

@@ -13,7 +13,10 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.brocktyus.pocketgolfcoach"
+      "bundleIdentifier": "com.brocktyus.pocketgolfcoach",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.brocktyus.pocketgolfcoach",
@@ -29,7 +32,7 @@
     },
     "extra": {
       "eas": {
-        "projectId": ""
+        "projectId": "beaf889d-8b8d-4854-9062-8b3b28e3171a"
       }
     }
   }

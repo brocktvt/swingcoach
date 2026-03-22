@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView,
-  TouchableOpacity, ActivityIndicator,
+  TouchableOpacity, ActivityIndicator, Image,
 } from 'react-native';
 import { colors, spacing, radius, shadow } from '../theme';
 import { analysis } from '../services/api';
@@ -24,18 +24,40 @@ function ScoreRing({ score }) {
   );
 }
 
+// ── Annotated frame snapshot ──────────────────────────────────────────────────
+function PhaseSnapshot({ phase, phaseImages }) {
+  if (!phaseImages || !phase) return null;
+  const b64 = phaseImages[phase];
+  if (!b64) return null;
+  return (
+    <View style={s.snapshotWrap}>
+      <Image
+        source={{ uri: `data:image/jpeg;base64,${b64}` }}
+        style={s.snapshotImg}
+        resizeMode="cover"
+      />
+      <View style={s.snapshotLabel}>
+        <Text style={s.snapshotLabelText}>
+          {phase.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
 // ── Positive card ─────────────────────────────────────────────────────────────
-function PositiveCard({ item }) {
+function PositiveCard({ item, phaseImages }) {
   return (
     <View style={s.positiveCard}>
       <View style={s.positiveHeader}>
         <Text style={s.positiveCheck}>✓</Text>
         <Text style={s.positiveTitle}>{item.title}</Text>
       </View>
+      <PhaseSnapshot phase={item.phase} phaseImages={phaseImages} />
       <Text style={s.positiveBody}>{item.description}</Text>
       {item.phase && (
         <View style={s.phaseTag}>
-          <Text style={s.phaseTagText}>{item.phase}</Text>
+          <Text style={s.phaseTagText}>{item.phase.replace(/_/g, ' ')}</Text>
         </View>
       )}
     </View>
@@ -43,7 +65,7 @@ function PositiveCard({ item }) {
 }
 
 // ── Issue card ────────────────────────────────────────────────────────────────
-function IssueCard({ issue }) {
+function IssueCard({ issue, phaseImages }) {
   const severityColor = {
     high:   colors.error,
     medium: colors.warning,
@@ -56,10 +78,11 @@ function IssueCard({ issue }) {
         <View style={[s.severityDot, { backgroundColor: severityColor }]} />
         <Text style={s.issueTitle}>{issue.title}</Text>
       </View>
+      <PhaseSnapshot phase={issue.phase} phaseImages={phaseImages} />
       <Text style={s.issueBody}>{issue.description}</Text>
       {issue.phase && (
         <View style={s.phaseTag}>
-          <Text style={s.phaseTagText}>{issue.phase}</Text>
+          <Text style={s.phaseTagText}>{issue.phase.replace(/_/g, ' ')}</Text>
         </View>
       )}
     </View>
@@ -201,10 +224,11 @@ export default function ResultsScreen({ route, navigation }) {
     );
   }
 
-  const positives = data.positives || [];
-  const issues    = data.issues    || [];
-  const drills    = data.drills    || [];
-  const angles    = data.angle_comparisons || [];
+  const positives    = data.positives || [];
+  const issues       = data.issues    || [];
+  const drills       = data.drills    || [];
+  const angles       = data.angle_comparisons || [];
+  const phaseImages  = data.phase_images || {};
 
   const handleSpeak = async (drill) => {
     await speakDrill(drill);
@@ -270,7 +294,7 @@ export default function ResultsScreen({ route, navigation }) {
             {positives.length === 0 ? (
               <Text style={s.emptyTab}>Processing positives…</Text>
             ) : (
-              positives.map((item, i) => <PositiveCard key={i} item={item} />)
+              positives.map((item, i) => <PositiveCard key={i} item={item} phaseImages={phaseImages} />)
             )}
           </View>
         )}
@@ -281,7 +305,7 @@ export default function ResultsScreen({ route, navigation }) {
             {issues.length === 0 ? (
               <Text style={s.emptyTab}>No issues detected — great swing! 🎉</Text>
             ) : (
-              issues.map((issue, i) => <IssueCard key={i} issue={issue} />)
+              issues.map((issue, i) => <IssueCard key={i} issue={issue} phaseImages={phaseImages} />)
             )}
           </View>
         )}
@@ -430,6 +454,38 @@ const s = StyleSheet.create({
   issueTitle:   { fontSize: 15, fontWeight: '700', color: colors.white, flex: 1 },
   issueBody:    { fontSize: 13, color: colors.grey1, lineHeight: 20 },
 
+  // Annotated frame snapshot
+  snapshotWrap: {
+    borderRadius: radius.sm,
+    overflow: 'hidden',
+    marginBottom: 10,
+    marginTop: 6,
+    position: 'relative',
+    backgroundColor: colors.bgAlt,
+    borderWidth: 1,
+    borderColor: colors.grey3,
+  },
+  snapshotImg: {
+    width: '100%',
+    height: 170,
+  },
+  snapshotLabel: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    backgroundColor: 'rgba(8,14,24,0.75)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderBottomRightRadius: radius.sm,
+  },
+  snapshotLabelText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: colors.tealLight,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+
   phaseTag: {
     alignSelf: 'flex-start',
     backgroundColor: colors.bgAlt,
@@ -438,7 +494,7 @@ const s = StyleSheet.create({
     paddingVertical: 3,
     marginTop: 8,
   },
-  phaseTagText: { fontSize: 11, color: colors.grey2 },
+  phaseTagText: { fontSize: 11, color: colors.grey2, textTransform: 'capitalize' },
 
   // Drill cards
   drillCard: {

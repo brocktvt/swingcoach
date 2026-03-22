@@ -154,7 +154,9 @@ async def analyze_swing(
 
     await db.commit()
 
-    return _format_analysis(row, feedback)
+    # Pass annotated frame images from pose extraction (not stored in DB — generated fresh each time)
+    phase_images = pose_data.get("phase_images", {})
+    return _format_analysis(row, feedback, phase_images)
 
 
 # ── GET /analyses ─────────────────────────────────────────────────────────────
@@ -212,7 +214,7 @@ async def list_pros(club_type: str = "driver"):
 
 
 # ── Formatters ────────────────────────────────────────────────────────────────
-def _format_analysis(row: Analysis, feedback: dict) -> dict:
+def _format_analysis(row: Analysis, feedback: dict, phase_images: dict = None) -> dict:
     return {
         "id":                  row.id,
         "club_type":           row.club_type,
@@ -224,6 +226,7 @@ def _format_analysis(row: Analysis, feedback: dict) -> dict:
         "drills":              feedback.get("drills", []),
         "angle_comparisons":   feedback.get("angle_comparisons", []),
         "coaching_script":     feedback.get("coaching_script", ""),
+        "phase_images":        phase_images or {},   # base64 JPEG per phase name
         "issue_count":         row.issue_count,
         "drill_count":         row.drill_count,
         "created_at":          row.created_at.isoformat(),

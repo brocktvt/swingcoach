@@ -10,6 +10,7 @@
  * a real instructor right next to you.
  */
 import * as Speech from 'expo-speech';
+import { Audio } from 'expo-av';
 
 // ── Voice settings ────────────────────────────────────────────────────────────
 // These settings are tuned to sound like a calm, clear instructor.
@@ -21,6 +22,24 @@ const VOICE_OPTIONS = {
   // iOS: prefer a natural-sounding voice
   // Android: uses the system TTS engine (Google TTS recommended)
 };
+
+// ── iOS audio session setup ───────────────────────────────────────────────────
+// Called before every speak() call.
+// playsInSilentModeIOS: true lets the app play audio even when the hardware
+// silent/mute switch is on — critical for coaching audio on the range.
+async function _configureAudioSession() {
+  try {
+    await Audio.setAudioModeAsync({
+      playsInSilentModeIOS:      true,
+      allowsRecordingIOS:        false,
+      staysActiveInBackground:   false,
+      shouldDuckAndroid:         true,
+    });
+  } catch (err) {
+    // Non-fatal — speech will still work on Android or if expo-av not available
+    console.warn('Audio session config failed:', err);
+  }
+}
 
 // State
 let _speaking    = false;
@@ -43,6 +62,9 @@ export async function speakCoachingScript(script, onProgress, onDone) {
 
   // Stop anything currently playing
   await stopSpeaking();
+
+  // Configure iOS audio session so audio plays even with the silent switch on
+  await _configureAudioSession();
 
   _speaking   = true;
   _onDone     = onDone;
@@ -72,6 +94,7 @@ export async function speakCoachingScript(script, onProgress, onDone) {
  */
 export async function speakQuickSummary(score, proName) {
   await stopSpeaking();
+  await _configureAudioSession();
   const line = scoreToLine(score, proName);
   Speech.speak(line, { ...VOICE_OPTIONS, rate: 0.92 });
 }
@@ -82,6 +105,7 @@ export async function speakQuickSummary(score, proName) {
  */
 export async function speakDrill(drill) {
   await stopSpeaking();
+  await _configureAudioSession();
   const text = `${drill.title}. ${drill.instructions} ${drill.reps ? `Do ${drill.reps}.` : ''}`;
   Speech.speak(text, VOICE_OPTIONS);
 }
