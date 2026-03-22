@@ -98,6 +98,25 @@ export const analysis = {
   },
 };
 
+// ── Golfer Profile ───────────────────────────────────────────────────────────
+export const profile = {
+  /** Fetch the current user's golfer profile + suggested pro. */
+  async get() {
+    const { data } = await client.get('/profile');
+    return data;
+  },
+
+  /**
+   * Save / update the golfer profile. Returns updated profile + suggested pro.
+   * Pass any subset of: handicap, rounds_per_year, age,
+   *                      height_in, weight_lbs, handedness, primary_goal
+   */
+  async save(updates) {
+    const { data } = await client.put('/profile', updates);
+    return data;
+  },
+};
+
 // ── Subscription ─────────────────────────────────────────────────────────────
 export const subscription = {
   /**

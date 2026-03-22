@@ -10,7 +10,7 @@ from sqlalchemy import select
 from jose import jwt, JWTError
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
-from models.db import get_db, User, Analysis
+from models.db import get_db, User, Analysis, UserProfile
 from services.pose import extract_pose_data
 from services.feedback import generate_feedback, PRO_REFERENCES
 from config import settings
@@ -95,9 +95,26 @@ async def analyze_swing(
             detail="No golfer detected in the video. Make sure the full body is visible and well-lit."
         )
 
+    # Load golfer profile for personalised feedback (optional — analysis still works without it)
+    profile_row = (await db.execute(
+        select(UserProfile).where(UserProfile.user_id == user.id)
+    )).scalar_one_or_none()
+
+    profile_dict = None
+    if profile_row:
+        profile_dict = {
+            "handicap":        profile_row.handicap,
+            "rounds_per_year": profile_row.rounds_per_year,
+            "age":             profile_row.age,
+            "height_in":       profile_row.height_in,
+            "weight_lbs":      profile_row.weight_lbs,
+            "handedness":      profile_row.handedness,
+            "primary_goal":    profile_row.primary_goal,
+        }
+
     # Get Claude feedback
     try:
-        feedback = await generate_feedback(pose_data, pro_reference, club_type)
+        feedback = await generate_feedback(pose_data, pro_reference, club_type, profile_dict)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Feedback generation failed: {e}")
 

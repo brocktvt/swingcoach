@@ -35,6 +35,24 @@ class User(Base):
     created_at          = Column(DateTime, default=datetime.utcnow)
 
     analyses = relationship("Analysis", back_populates="user")
+    profile  = relationship("UserProfile", back_populates="user", uselist=False)
+
+
+class UserProfile(Base):
+    __tablename__ = "user_profiles"
+
+    user_id         = Column(String, ForeignKey("users.id"), primary_key=True)
+    handicap        = Column(Float,   nullable=True)   # None = "I don't have one"
+    rounds_per_year = Column(Integer, nullable=True)
+    age             = Column(Integer, nullable=True)
+    height_in       = Column(Float,   nullable=True)   # total inches (e.g. 5'10" = 70)
+    weight_lbs      = Column(Float,   nullable=True)
+    handedness      = Column(String,  default="right") # "right" | "left"
+    primary_goal    = Column(String,  nullable=True)   # "distance"|"consistency"|"short_game"|"course_management"
+    suggested_pro   = Column(String,  nullable=True)   # computed on save
+    updated_at      = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = relationship("User", back_populates="profile")
 
 
 class Analysis(Base):

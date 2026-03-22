@@ -78,8 +78,121 @@ Your analysis should:
 Always respond with valid JSON matching the exact schema provided."""
 
 
-def build_prompt(pose_data: dict, pro_id: str, club_type: str) -> str:
+def _golfer_profile_block(profile: dict | None) -> str:
+    """Format golfer profile data as a readable context block for Claude."""
+    if not profile:
+        return ""
+
+    lines = ["GOLFER PROFILE:"]
+
+    if profile.get("handicap") is not None:
+        hcp = profile["handicap"]
+        if hcp <= 5:
+            skill = "low handicapper / near-scratch"
+        elif hcp <= 10:
+            skill = "mid-handicapper"
+        elif hcp <= 20:
+            skill = "high-handicapper"
+        else:
+            skill = "beginner"
+        lines.append(f"  Handicap: {hcp} ({skill})")
+    else:
+        lines.append("  Handicap: not established (treat as beginner/developing golfer)")
+
+    if profile.get("rounds_per_year"):
+        r = profile["rounds_per_year"]
+        freq = "very casual" if r < 6 else "occasional" if r < 15 else "regular" if r < 30 else "frequent"
+        lines.append(f"  Rounds per year: {r} ({freq} golfer)")
+
+    if profile.get("age"):
+        lines.append(f"  Age: {profile['age']}")
+
+    if profile.get("height_in"):
+        h = profile["height_in"]
+        feet, inches = int(h) // 12, int(h) % 12
+        lines.append(f"  Height: {feet}'{inches}\"  ({h:.0f} in)")
+
+    if profile.get("weight_lbs"):
+        lines.append(f"  Weight: {profile['weight_lbs']:.0f} lbs")
+
+    if profile.get("handedness"):
+        lines.append(f"  Handedness: {profile['handedness']}-handed")
+
+    if profile.get("primary_goal"):
+        goal_labels = {
+            "distance": "more distance",
+            "consistency": "consistency and accuracy",
+            "short_game": "short game / scoring",
+            "course_management": "course management / lower scores",
+        }
+        lines.append(f"  Primary goal: {goal_labels.get(profile['primary_goal'], profile['primary_goal'])}")
+
+    return "\n".join(lines)
+
+
+def _skill_tone_instruction(profile: dict | None) -> str:
+    """Return coaching tone/depth instructions appropriate for this golfer's level."""
+    if not profile or profile.get("handicap") is None:
+        handicap = 99  # treat as beginner
+    else:
+        handicap = profile["handicap"]
+
+    age = profile.get("age") if profile else None
+
+    if handicap > 20 or handicap == 99:
+        tone = (
+            "This is a high-handicap or beginner golfer. Use plain, jargon-free language. "
+            "Focus exclusively on the 1-2 most impactful fundamentals — do not overwhelm them. "
+            "Be very encouraging. Avoid tour-level technical detail."
+        )
+    elif handicap > 10:
+        tone = (
+            "This is a mid-handicap golfer. You can introduce some biomechanical concepts but keep "
+            "explanations accessible. Focus on the changes most likely to lower their scores."
+        )
+    elif handicap > 5:
+        tone = (
+            "This is a low-mid handicap golfer. You can use technical language and detailed biomechanical "
+            "explanations. They are ready for nuanced swing corrections."
+        )
+    else:
+        tone = (
+            "This is a low handicapper or scratch golfer. Use full technical detail — tour-level comparisons, "
+            "precise angle targets, and nuanced sequence corrections are all appropriate."
+        )
+
+    if age and age >= 55:
+        tone += (
+            " Note: this golfer is 55+. Prioritise swing efficiency, tempo, and flexibility-friendly "
+            "mechanics over raw power generation. Avoid recommending drills that require extreme ranges of motion."
+        )
+
+    return tone
+
+
+def build_prompt(pose_data: dict, pro_id: str, club_type: str, profile: dict | None = None) -> str:
     pro = PRO_REFERENCES.get(pro_id, PRO_REFERENCES["rory_mcilroy"])
+
+    # Use the new 25-frame data if available; fall back to legacy 6-phase format
+    if "frames" in pose_data and pose_data["frames"]:
+        swing_data = (
+            f"Swing window: {pose_data.get('swing_start_s', 0):.1f}s – {pose_data.get('swing_end_s', pose_data['duration_s']):.1f}s "
+            f"({'auto-detected' if pose_data.get('swing_detected') else 'full video'})\n"
+            f"Total: {pose_data['frame_count']} frames at {pose_data['fps']}fps ({pose_data['duration_s']}s)\n\n"
+            f"25-frame pose sequence (phase, sample#, % through swing, angles):\n"
+            f"{json.dumps(pose_data['frames'], indent=2)}\n\n"
+            f"Best-visibility snapshot per phase (use for angle_comparisons):\n"
+            f"{json.dumps(pose_data.get('phases_summary', {}), indent=2)}"
+        )
+    else:
+        # Legacy format
+        swing_data = (
+            f"Video: {pose_data['duration_s']}s, {pose_data['frame_count']} frames at {pose_data['fps']}fps\n"
+            f"Pose data by phase:\n{json.dumps(pose_data.get('phases', {}), indent=2)}"
+        )
+
+    profile_block    = _golfer_profile_block(profile)
+    skill_tone       = _skill_tone_instruction(profile)
 
     return f"""Analyze this golf swing and provide structured feedback.
 
@@ -90,10 +203,13 @@ Pro's swing style: {pro['style']}
 Pro's benchmark angles:
 {json.dumps(pro['benchmarks'], indent=2)}
 
+{profile_block}
+
+COACHING TONE & DEPTH:
+{skill_tone}
+
 USER'S MEASURED SWING DATA:
-Video: {pose_data['duration_s']}s, {pose_data['frame_count']} frames at {pose_data['fps']}fps
-Pose data by phase:
-{json.dumps(pose_data['phases'], indent=2)}
+{swing_data}
 
 Respond with ONLY a JSON object in this exact format:
 {{
@@ -136,14 +252,15 @@ Respond with ONLY a JSON object in this exact format:
 Find 2-3 genuine positives. Focus on the 2-3 most impactful issues. Maximum 3 drills, each tied to a specific issue. Be specific throughout."""
 
 
-async def generate_feedback(pose_data: dict, pro_id: str, club_type: str) -> dict:
+async def generate_feedback(pose_data: dict, pro_id: str, club_type: str, profile: dict | None = None) -> dict:
     """
     Send pose data to Claude and return structured feedback.
+    profile: optional golfer profile dict (handicap, age, height_in, etc.)
     """
     # Let the SDK read ANTHROPIC_API_KEY from the environment directly
     # rather than passing through pydantic settings (which may return "")
     client = anthropic.Anthropic()
-    prompt = build_prompt(pose_data, pro_id, club_type)
+    prompt = build_prompt(pose_data, pro_id, club_type, profile)
 
     log.info(f"Requesting feedback from Claude (pro={pro_id}, club={club_type})")
 

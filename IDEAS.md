@@ -56,6 +56,64 @@
 - Manual trim is lower risk and can ship faster; auto-trim could be a Pro feature
 - expo-image-picker and expo-video already in the project — need to evaluate trimming library options (react-native-video-trim or similar)
 
+## 8. Side-by-Side Frame Comparison
+- Show key-phase frames from the user's swing next to a reference image (pro or stock), with pose skeleton overlays color-coded green (good) / red (needs work)
+- Two tiers of ambition:
+  - **Key-frame stills** (buildable now): Extract the 6 phase frames from user video, draw MediaPipe skeleton on top, pair with a reference skeleton or image. Carousel in the results screen. No licensing issues.
+  - **Synchronized video side-by-side** (longer term): Actual video playback aligned at impact frame, with live overlays. Requires licensed pro footage, temporal alignment, and video compositing pipeline — significant scope.
+- Recommendation: ship key-frame stills first; add video as a Pro premium feature later
+- The skeleton color-coding (green/red per joint based on angle delta vs. benchmark) is the key value-add
+
+## 9. Swing Auto-Detection (Trim to Just the Swing)
+- Currently pose.py samples at fixed percentages of the full video — it has no idea when the swing actually starts or ends
+- If a golfer walks to the ball, sets up, then swings, the early frames (walking) corrupt the percentage-based sampling
+- Approach: scan frames for the address position (stable pose, specific hip/shoulder/knee angle signature) to find swing start, then detect follow-through completion for swing end; crop analysis to that window
+- Could also power auto-trim in the upload UI (see #7) — detect and suggest trim handles automatically
+- Two modes: server-side auto-detect (no UI friction) and client-side suggested trim (user can override)
+- Questions to resolve: what's the minimum confidence threshold for "is this a swing"? False positives on practice waggle or partial swings?
+
+## 10. Increase Pose Sampling Rate
+- Currently samples 6 frames (address through follow-through) at fixed percentages
+- Increasing to 20+ frames would give Claude much richer data for the transition, downswing, and impact zone — the most consequential part of the swing
+- Tradeoff: more frames = more MediaPipe processing time on the server (linear scaling)
+- Could sample densely around impact (e.g., 10 frames between 55%–80%) and sparsely elsewhere
+- Once swing auto-detection (#9) is in, we know the actual swing window and can sample evenly within it
+
+## 11. Feedback History & Trend Analysis
+- Save every analysis result (angles, score, issues, drills) per user, linked to the submission timestamp and club type
+- Over time, compare scores and angle deltas across sessions to show whether the golfer is improving
+- Features this unlocks:
+  - "Your hip rotation at impact has improved 12° over your last 5 sessions"
+  - Highlight which drill recommendations actually correlated with improvement
+  - Identify persistent issues (flagged 3+ times = priority focus area)
+  - "Improvement streaks" as a gamification/retention hook
+- Backend: store `analysis_results` JSON in PostgreSQL alongside the upload record; add a `/history` endpoint
+- Frontend: a "Progress" tab or section on Home showing trend lines per key angle
+
+## 12. Golfer Profile / Skill Onboarding
+- Before first analysis (or in a profile screen), ask:
+  - Handicap index (or "I don't have one" → beginner)
+  - Rounds per year (casual: 1-5, regular: 6-20, serious: 20+)
+  - Age
+  - Primary goal: distance, consistency, course management, short game?
+  - Right- or left-handed
+- Use this data to tailor Claude's feedback tone and priority:
+  - Beginner (high handicap): focus on fundamentals, avoid technical jargon, encouraging tone
+  - Mid-handicap: introduce more biomechanical detail, compare to pro styles
+  - Low handicap / scratch: detailed technical breakdowns, tour-level comparisons
+- Store in user profile table in PostgreSQL
+- Pass as context to Claude in the feedback prompt
+
+## 13. Pro Footage Acquisition for Reference
+- Goal: replace hardcoded angle benchmarks with data actually measured from real pro video
+- Possible sources:
+  - License stock footage from Getty/Shutterstock (clean side-on DTL views exist)
+  - PGA Tour / DP World Tour media licensing (expensive but high quality)
+  - Publicly available YouTube footage (fair use gray area — risky for a commercial product)
+  - Commission a golf photographer/videographer to film a teaching pro in the correct angles
+- Once we have video, run it through the same MediaPipe pipeline to extract real angle benchmarks — much more accurate than hand-authored numbers
+- Side-by-side stills (#8) become far more compelling once we have actual pro frames to show
+
 ## 3. Onboarding Background Video
 - Replace (or layer behind) the current animated stick figure golfer with a real dimmed video of someone hitting a shot in a golf simulator
 - Questions to resolve:
