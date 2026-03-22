@@ -58,6 +58,21 @@ async def health():
     return {"status": "ok", "service": "SwingCoach API"}
 
 
+@app.get("/debug/anthropic")
+async def debug_anthropic():
+    import os
+    key = os.environ.get("ANTHROPIC_API_KEY", "")
+    if not key:
+        return {"status": "NOT SET"}
+    return {
+        "status": "set",
+        "length": len(key),
+        "prefix": key[:12],
+        "has_quotes": key.startswith('"') or key.startswith("'"),
+        "has_whitespace": key != key.strip(),
+    }
+
+
 @app.get("/debug/db")
 async def debug_db():
     from config import settings
