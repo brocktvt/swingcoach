@@ -47,6 +47,15 @@
   - Should drill videos be a Pro-only feature?
   - Deep link into YouTube app vs. in-app video player?
 
+## 7. Video Trimming Before Upload
+- Golfers need to start recording, walk to position, swing, then stop — creating wasted footage at the start and end
+- Two approaches to discuss:
+  - **Manual in-app trim**: a simple scrubber UI after recording/picking a video, letting the user drag start/end handles before uploading. Clean UX, user has full control.
+  - **Automatic server-side trim**: MediaPipe scans frames to detect when a golfer is present and in motion, auto-crops to just the swing. No UI needed, but adds processing time and complexity.
+  - Best of both worlds: auto-detect and suggest trim points, but let user adjust before confirming
+- Manual trim is lower risk and can ship faster; auto-trim could be a Pro feature
+- expo-image-picker and expo-video already in the project — need to evaluate trimming library options (react-native-video-trim or similar)
+
 ## 3. Onboarding Background Video
 - Replace (or layer behind) the current animated stick figure golfer with a real dimmed video of someone hitting a shot in a golf simulator
 - Questions to resolve:
