@@ -56,3 +56,18 @@ async def startup():
 @app.get("/health")
 async def health():
     return {"status": "ok", "service": "SwingCoach API"}
+
+
+@app.get("/debug/db")
+async def debug_db():
+    from config import settings
+    from sqlalchemy import text
+    from models.db import AsyncSessionLocal
+    url = settings.database_url
+    scheme = url.split("://")[0] if "://" in url else "unknown"
+    try:
+        async with AsyncSessionLocal() as session:
+            await session.execute(text("SELECT 1"))
+        return {"scheme": scheme, "connection": "ok"}
+    except Exception as e:
+        return {"scheme": scheme, "connection": "failed", "error": str(e)}
