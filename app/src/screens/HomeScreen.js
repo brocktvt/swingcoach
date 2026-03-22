@@ -111,7 +111,7 @@ export default function HomeScreen({ navigation }) {
         <View style={s.tipBanner}>
           <Text style={s.tipTitle}>📐 Best results tip</Text>
           <Text style={s.tipBody}>
-            Film from directly down the target line or directly behind the ball. Landscape mode, waist height. The more consistent your setup, the better the comparison.
+            Film from the side, perpendicular to your target line, at waist height — so the camera faces your chest. Landscape mode, full body in frame. The more consistent your setup, the better the comparison.
           </Text>
         </View>
 

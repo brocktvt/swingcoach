@@ -35,13 +35,16 @@ const Tab   = createBottomTabNavigator();
 function TabIcon({ label, focused }) {
   const icons = { Home: '⛳', Analyze: '🎥', History: '📋', Profile: '👤' };
   return (
-    <View style={{ alignItems: 'center' }}>
-      <Text style={{ fontSize: 20 }}>{icons[label] || '●'}</Text>
-      <Text style={{
-        fontSize: 10,
-        color: focused ? colors.tealLight : colors.grey2,
-        marginTop: 2,
-      }}>{label}</Text>
+    <View style={{ alignItems: 'center', width: 60 }}>
+      <Text style={{ fontSize: 18 }}>{icons[label] || '●'}</Text>
+      <Text
+        numberOfLines={1}
+        style={{
+          fontSize: 10,
+          color: focused ? colors.tealLight : colors.grey2,
+          marginTop: 2,
+        }}
+      >{label}</Text>
     </View>
   );
 }
