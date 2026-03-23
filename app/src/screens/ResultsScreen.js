@@ -19,6 +19,10 @@ import {
 
 // ── Share helpers ─────────────────────────────────────────────────────────────
 
+// Update this to the real App Store URL once the app is published.
+// Format: 'https://apps.apple.com/app/pocket-golf-coach/id<YOUR_APP_ID>'
+const APP_STORE_URL = 'https://apps.apple.com/app/pocket-golf-coach';
+
 /**
  * Share the full text coaching summary via the native iOS/Android share sheet.
  * Works with Messages, Mail, Notes, social apps — anything that accepts text.
@@ -41,6 +45,7 @@ async function shareAnalysisSummary(data) {
       drill ? `\nTop drill: ${drill.title}`   : '',
       ``,
       `Analyzed with Pocket Golf Coach 🏌️`,
+      APP_STORE_URL,
     ].filter(l => l !== null && l !== undefined);
 
     await Share.share({ message: lines.join('\n') });
@@ -69,6 +74,7 @@ async function sharePhaseImage(b64, phase, caption = '') {
       `Phase: ${phase.replace(/_/g, ' ')}`,
       ``,
       `🏌️ Analyzed with Pocket Golf Coach`,
+      APP_STORE_URL,
     ].filter(Boolean).join('\n');
 
     if (Platform.OS === 'ios') {
