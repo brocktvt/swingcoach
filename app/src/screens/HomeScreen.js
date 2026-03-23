@@ -1,12 +1,49 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  ScrollView, SafeAreaView, StatusBar,
+  ScrollView, SafeAreaView, StatusBar, RefreshControl,
 } from 'react-native';
 import { colors, spacing, radius, shadow } from '../theme';
-import { analysis } from '../services/api';
+import { analysis, profile as profileApi } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 
+// ── Rotating filming tips ─────────────────────────────────────────────────────
+const TIPS = [
+  {
+    title: '📐 Camera position',
+    body:  'Film from the side, perpendicular to your target line, at waist height. Landscape mode, full body in frame.',
+  },
+  {
+    title: '☀️ Lighting matters',
+    body:  'Bright, even light helps the AI find your joints. Outdoors on a cloudy day is ideal — avoid strong backlighting.',
+  },
+  {
+    title: '🎯 Full body in frame',
+    body:  'Make sure your feet and the top of your head are both visible throughout the entire swing, not just at address.',
+  },
+  {
+    title: '🔁 Consistency is key',
+    body:  'Use the same camera angle each session so your scores are directly comparable over time.',
+  },
+  {
+    title: '⏱️ Clip length',
+    body:  'A 5–15 second clip works best. Include your full setup, swing, and finish — don\'t cut too early.',
+  },
+  {
+    title: '👟 Show your feet',
+    body:  'Keep your feet in frame. Weight transfer and foot position are key signals for impact analysis.',
+  },
+  {
+    title: '📱 Stabilize your phone',
+    body:  'Prop your phone against a bag or use a small tripod. A shaky camera reduces tracking accuracy.',
+  },
+  {
+    title: '🏌️ Real swings only',
+    body:  'Film a genuine full-speed swing — slow-motion or practice swings can confuse the motion detection.',
+  },
+];
+
+// ── Stat cards ────────────────────────────────────────────────────────────────
 function StatCard({ value, label }) {
   return (
     <View style={s.statCard}>
@@ -16,6 +53,32 @@ function StatCard({ value, label }) {
   );
 }
 
+// ── Monthly usage progress bar ────────────────────────────────────────────────
+const FREE_LIMIT = 5;
+function UsageCard({ used, isPro }) {
+  if (isPro) {
+    return (
+      <View style={s.statCard}>
+        <Text style={s.statValue}>∞</Text>
+        <Text style={s.statLabel}>Unlimited</Text>
+      </View>
+    );
+  }
+  const remaining = Math.max(0, FREE_LIMIT - used);
+  const pct       = Math.min(1, used / FREE_LIMIT);
+  const barColor  = remaining === 0 ? colors.error : remaining === 1 ? colors.warning : colors.tealLight;
+  return (
+    <View style={[s.statCard, { justifyContent: 'space-between' }]}>
+      <Text style={[s.statValue, { color: barColor }]}>{remaining}</Text>
+      <Text style={s.statLabel}>Left this month</Text>
+      <View style={s.usageBarBg}>
+        <View style={[s.usageBarFill, { width: `${pct * 100}%`, backgroundColor: barColor }]} />
+      </View>
+    </View>
+  );
+}
+
+// ── Recent item ───────────────────────────────────────────────────────────────
 function RecentItem({ item, onPress }) {
   const clubEmoji = { driver: '🏌️', iron: '⛳', wedge: '🎯', putter: '🕳️' };
   const date = new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -39,39 +102,68 @@ function scoreColor(score) {
   return colors.error;
 }
 
+// ── Main screen ───────────────────────────────────────────────────────────────
 export default function HomeScreen({ navigation }) {
   const { user } = useAuth();
-  const [history, setHistory] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [history,    setHistory]    = useState([]);
+  const [loading,    setLoading]    = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [firstName,  setFirstName]  = useState('');
+  const [tip]                       = useState(() => TIPS[Math.floor(Math.random() * TIPS.length)]);
 
   useEffect(() => {
-    loadHistory();
+    loadAll();
   }, []);
 
-  const loadHistory = async () => {
+  const loadAll = async (isRefresh = false) => {
     try {
-      const data = await analysis.getHistory(5);
-      setHistory(data.analyses || []);
+      const [histData, profileData] = await Promise.allSettled([
+        analysis.getHistory(5),
+        profileApi.get(),
+      ]);
+      if (histData.status === 'fulfilled') {
+        setHistory(histData.value.analyses || []);
+      }
+      if (profileData.status === 'fulfilled' && profileData.value?.first_name) {
+        setFirstName(profileData.value.first_name);
+      } else {
+        setFirstName(user?.email?.split('@')[0] || 'Golfer');
+      }
     } catch {
-      // Silently fail — show empty state
+      setFirstName(user?.email?.split('@')[0] || 'Golfer');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
-  const firstName = user?.email?.split('@')[0] || 'Golfer';
-  const analysesLeft = user?.analyses_remaining ?? 5;
-  const isPro = user?.subscription === 'pro';
+  const onRefresh = () => { setRefreshing(true); loadAll(true); };
+
+  const isPro          = user?.subscription === 'pro';
+  const analysesUsed   = user?.analyses_this_month ?? 0;
+  const analysesLeft   = Math.max(0, FREE_LIMIT - analysesUsed);
 
   return (
     <SafeAreaView style={s.safe}>
       <StatusBar barStyle="light-content" />
-      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={s.scroll}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.tealLight}
+          />
+        }
+      >
 
         {/* Header */}
         <View style={s.header}>
           <View>
-            <Text style={s.greeting}>Hey, {firstName} 👋</Text>
+            <Text style={s.greeting}>
+              Hey, {firstName || user?.email?.split('@')[0] || 'Golfer'} 👋
+            </Text>
             <Text style={s.sub}>Ready to fix that swing?</Text>
           </View>
           {!isPro && (
@@ -84,8 +176,8 @@ export default function HomeScreen({ navigation }) {
         {/* Stats row */}
         <View style={s.statsRow}>
           <StatCard value={user?.total_analyses ?? 0} label="Total Swings" />
-          <StatCard value={isPro ? '∞' : analysesLeft} label={isPro ? 'Unlimited' : 'Left This Month'} />
-          <StatCard value={user?.avg_score ?? '—'} label="Avg Score" />
+          <UsageCard used={analysesUsed} isPro={isPro} />
+          <StatCard value={user?.avg_score ? Math.round(user.avg_score) : '—'} label="Avg Score" />
         </View>
 
         {/* Analyze CTA */}
@@ -107,12 +199,10 @@ export default function HomeScreen({ navigation }) {
           <Text style={s.analyzeCtaArrow}>→</Text>
         </TouchableOpacity>
 
-        {/* Tips banner */}
+        {/* Rotating tip */}
         <View style={s.tipBanner}>
-          <Text style={s.tipTitle}>📐 Best results tip</Text>
-          <Text style={s.tipBody}>
-            Film from the side, perpendicular to your target line, at waist height — so the camera faces your chest. Landscape mode, full body in frame. The more consistent your setup, the better the comparison.
-          </Text>
+          <Text style={s.tipTitle}>{tip.title}</Text>
+          <Text style={s.tipBody}>{tip.body}</Text>
         </View>
 
         {/* Recent analyses */}
@@ -156,10 +246,31 @@ const s = StyleSheet.create({
     paddingVertical: 6,
   },
   proBadgeText: { color: colors.white, fontSize: 13, fontWeight: '700' },
+
   statsRow:   { flexDirection: 'row', gap: spacing.md, marginBottom: spacing.lg },
-  statCard:   { flex: 1, backgroundColor: colors.bgCard, borderRadius: radius.md, padding: spacing.md, alignItems: 'center', borderWidth: 1, borderColor: colors.grey3 },
+  statCard:   {
+    flex: 1,
+    backgroundColor: colors.bgCard,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.grey3,
+  },
   statValue:  { fontSize: 24, fontWeight: '800', color: colors.tealLight },
   statLabel:  { fontSize: 11, color: colors.grey2, marginTop: 4, textAlign: 'center' },
+
+  // Usage progress bar
+  usageBarBg: {
+    width: '100%',
+    height: 4,
+    backgroundColor: colors.grey3,
+    borderRadius: 2,
+    marginTop: 6,
+    overflow: 'hidden',
+  },
+  usageBarFill: { height: '100%', borderRadius: 2 },
+
   analyzeCta: {
     backgroundColor: colors.teal,
     borderRadius: radius.lg,
@@ -174,6 +285,7 @@ const s = StyleSheet.create({
   analyzeCtaTitle: { fontSize: 18, fontWeight: '800', color: colors.white },
   analyzeCtaSub:   { fontSize: 13, color: 'rgba(255,255,255,0.75)', marginTop: 2 },
   analyzeCtaArrow: { fontSize: 20, color: colors.white },
+
   tipBanner: {
     backgroundColor: colors.bgCard,
     borderRadius: radius.md,
@@ -186,12 +298,14 @@ const s = StyleSheet.create({
   },
   tipTitle:   { fontSize: 13, fontWeight: '700', color: colors.white, marginBottom: 6 },
   tipBody:    { fontSize: 12, color: colors.grey2, lineHeight: 18 },
+
   sectionTitle: { fontSize: 16, fontWeight: '700', color: colors.white, marginBottom: spacing.md },
-  empty:      { color: colors.grey2, textAlign: 'center', marginTop: spacing.xl },
-  emptyCard:  { backgroundColor: colors.bgCard, borderRadius: radius.md, padding: spacing.xl, alignItems: 'center', borderWidth: 1, borderColor: colors.grey3 },
-  emptyEmoji: { fontSize: 40, marginBottom: spacing.md },
-  emptyTitle: { fontSize: 16, fontWeight: '700', color: colors.white, marginBottom: 6 },
-  emptyBody:  { fontSize: 13, color: colors.grey2, textAlign: 'center' },
+  empty:        { color: colors.grey2, textAlign: 'center', marginTop: spacing.xl },
+  emptyCard:    { backgroundColor: colors.bgCard, borderRadius: radius.md, padding: spacing.xl, alignItems: 'center', borderWidth: 1, borderColor: colors.grey3 },
+  emptyEmoji:   { fontSize: 40, marginBottom: spacing.md },
+  emptyTitle:   { fontSize: 16, fontWeight: '700', color: colors.white, marginBottom: 6 },
+  emptyBody:    { fontSize: 13, color: colors.grey2, textAlign: 'center' },
+
   recentItem: {
     backgroundColor: colors.bgCard,
     borderRadius: radius.md,

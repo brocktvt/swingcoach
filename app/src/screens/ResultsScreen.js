@@ -7,6 +7,7 @@ import { VideoView, useVideoPlayer } from 'expo-video';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system';
+import * as Clipboard from 'expo-clipboard';
 import { colors, spacing, radius, shadow } from '../theme';
 import { analysis } from '../services/api';
 import { API_BASE_URL } from '../services/api';
@@ -339,7 +340,8 @@ function PositionRow({ label, yours, pro, diff }) {
 
 // ── Audio player bar ──────────────────────────────────────────────────────────
 function AudioBar({ data }) {
-  const [playing, setPlaying] = useState(false);
+  const [playing,  setPlaying]  = useState(false);
+  const [copied,   setCopied]   = useState(false);
 
   // Keep screen awake while coaching audio is playing
   useEffect(() => {
@@ -369,27 +371,42 @@ function AudioBar({ data }) {
     }
   };
 
+  const handleCopy = async () => {
+    const script = data.coaching_script || buildFallbackScript(data);
+    await Clipboard.setStringAsync(script);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   return (
-    <TouchableOpacity style={[s.audioBar, playing && s.audioBarActive]} onPress={handleToggle}>
-      <Text style={s.audioBarIcon}>{playing ? '⏹' : '▶'}</Text>
-      <View style={s.audioBarText}>
-        <Text style={s.audioBarTitle}>
-          {playing ? 'Coaching in progress…' : 'Hear your coaching session'}
-        </Text>
-        <Text style={s.audioBarSub}>
-          {playing
-            ? 'Tap to stop'
-            : 'Full breakdown read aloud — works through AirPods or speaker'}
-        </Text>
-      </View>
-      {playing && (
-        <View style={s.audioBarWave}>
-          {[1, 2, 3, 4].map((i) => (
-            <View key={i} style={[s.audioBarDot, { opacity: 0.4 + i * 0.15 }]} />
-          ))}
+    <View style={s.audioWrap}>
+      <TouchableOpacity style={[s.audioBar, playing && s.audioBarActive]} onPress={handleToggle}>
+        <Text style={s.audioBarIcon}>{playing ? '⏹' : '▶'}</Text>
+        <View style={s.audioBarText}>
+          <Text style={s.audioBarTitle}>
+            {playing ? 'Coaching in progress…' : 'Hear your coaching session'}
+          </Text>
+          <Text style={s.audioBarSub}>
+            {playing
+              ? 'Tap to stop'
+              : 'Full breakdown read aloud — works through AirPods or speaker'}
+          </Text>
         </View>
-      )}
-    </TouchableOpacity>
+        {playing && (
+          <View style={s.audioBarWave}>
+            {[1, 2, 3, 4].map((i) => (
+              <View key={i} style={[s.audioBarDot, { opacity: 0.4 + i * 0.15 }]} />
+            ))}
+          </View>
+        )}
+      </TouchableOpacity>
+      <TouchableOpacity style={s.copyBtn} onPress={handleCopy}>
+        <Text style={s.copyBtnIcon}>{copied ? '✓' : '📋'}</Text>
+        <Text style={[s.copyBtnLabel, copied && { color: colors.success }]}>
+          {copied ? 'Copied!' : 'Copy'}
+        </Text>
+      </TouchableOpacity>
+    </View>
   );
 }
 
@@ -627,6 +644,10 @@ const s = StyleSheet.create({
   summaryBody:  { fontSize: 14, color: colors.grey1, lineHeight: 22 },
 
   // Audio bar
+  audioWrap: {
+    marginBottom: spacing.lg,
+    gap: spacing.sm,
+  },
   audioBar: {
     backgroundColor: colors.bgCard,
     borderRadius: radius.md,
@@ -636,15 +657,27 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
-    marginBottom: spacing.lg,
   },
-  audioBarActive: { borderColor: colors.teal, backgroundColor: colors.tealDim },
+  audioBarActive: { borderColor: colors.teal, backgroundColor: colors.tealDim, marginBottom: 0 },
   audioBarIcon:   { fontSize: 22 },
   audioBarText:   { flex: 1 },
   audioBarTitle:  { fontSize: 14, fontWeight: '700', color: colors.white },
   audioBarSub:    { fontSize: 11, color: colors.grey2, marginTop: 2 },
   audioBarWave:   { flexDirection: 'row', gap: 3, alignItems: 'center' },
   audioBarDot:    { width: 4, height: 16, backgroundColor: colors.tealLight, borderRadius: 2 },
+  copyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: colors.bgCard,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.grey3,
+    paddingVertical: 8,
+  },
+  copyBtnIcon:  { fontSize: 14 },
+  copyBtnLabel: { fontSize: 12, fontWeight: '600', color: colors.grey2 },
 
   tabs:         { flexDirection: 'row', marginBottom: spacing.lg, backgroundColor: colors.bgCard, borderRadius: radius.md, padding: 4 },
   tab:          { flex: 1, paddingVertical: 9, alignItems: 'center', borderRadius: radius.sm },

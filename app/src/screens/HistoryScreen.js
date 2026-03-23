@@ -12,16 +12,29 @@ function scoreColor(score) {
   return colors.error;
 }
 
-function HistoryItem({ item, onPress }) {
+function HistoryItem({ item, onPress, delta }) {
   const clubEmoji = { driver: '🏌️', iron: '⛳', wedge: '🎯', putter: '🕳️' };
   const date = new Date(item.created_at).toLocaleDateString('en-US', {
     month: 'short', day: 'numeric', year: 'numeric',
   });
   const color = scoreColor(item.overall_score);
+
+  // delta: positive = improved, negative = dropped, null = oldest swing (no prior)
+  const deltaColor = delta > 0 ? colors.success : delta < 0 ? colors.error : colors.grey2;
+  const deltaLabel = delta == null ? null
+    : delta === 0 ? '→'
+    : delta > 0   ? `↑ +${delta}`
+    : `↓ ${delta}`;
+
   return (
     <TouchableOpacity style={s.item} onPress={() => onPress(item)}>
-      <View style={[s.scoreBadge, { borderColor: color }]}>
-        <Text style={[s.scoreText, { color }]}>{item.overall_score}</Text>
+      <View style={s.scoreCol}>
+        <View style={[s.scoreBadge, { borderColor: color }]}>
+          <Text style={[s.scoreText, { color }]}>{item.overall_score}</Text>
+        </View>
+        {deltaLabel && (
+          <Text style={[s.deltaText, { color: deltaColor }]}>{deltaLabel}</Text>
+        )}
       </View>
       <View style={s.itemInfo}>
         <Text style={s.itemClub}>
@@ -98,7 +111,12 @@ export default function HistoryScreen({ navigation }) {
         <FlatList
           data={items}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => <HistoryItem item={item} onPress={goToResult} />}
+          renderItem={({ item, index }) => {
+            // items are newest-first; delta = this score minus the previous (older) score
+            const prev  = items[index + 1];
+            const delta = prev ? item.overall_score - prev.overall_score : null;
+            return <HistoryItem item={item} onPress={goToResult} delta={delta} />;
+          }}
           contentContainerStyle={s.list}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.tealLight} />}
           showsVerticalScrollIndicator={false}
@@ -126,8 +144,10 @@ const s = StyleSheet.create({
     gap: spacing.md,
     marginBottom: spacing.sm,
   },
+  scoreCol:    { alignItems: 'center', width: 58 },
   scoreBadge:  { width: 52, height: 52, borderRadius: 26, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
   scoreText:   { fontSize: 17, fontWeight: '800' },
+  deltaText:   { fontSize: 11, fontWeight: '700', marginTop: 3 },
   itemInfo:    { flex: 1 },
   itemClub:    { fontSize: 15, fontWeight: '700', color: colors.white },
   itemMeta:    { fontSize: 12, color: colors.grey2, marginTop: 2 },
