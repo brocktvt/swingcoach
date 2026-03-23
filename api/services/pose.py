@@ -420,21 +420,23 @@ def extract_pose_data(video_path: str) -> dict:
     swing_length   = max(1, swing_end - swing_start)
 
     result = {
-        "frames":         [],
-        "phases_summary": {},
-        "phase_images":   {},    # base64 JPEG per phase — annotated frame snapshot
-        "frame_count":    total_frames,
-        "fps":            round(fps, 1),
-        "duration_s":     round(duration_s, 2),
-        "swing_start_s":  round(swing_start / fps, 2),
-        "swing_end_s":    round(swing_end / fps, 2),
-        "swing_detected": swing_detected,
+        "frames":               [],
+        "phases_summary":       {},
+        "phase_images":         {},    # base64 JPEG per phase — annotated frame snapshot
+        "phase_frame_indices":  {},    # {phase_name: frame_index} for lazy video clip extraction
+        "frame_count":          total_frames,
+        "fps":                  round(fps, 1),
+        "duration_s":           round(duration_s, 2),
+        "swing_start_s":        round(swing_start / fps, 2),
+        "swing_end_s":          round(swing_end / fps, 2),
+        "swing_detected":       swing_detected,
     }
 
     # ── Step 2: Sample 25 frames within the window ────────────────────────────
     phase_counters = {}   # sample count per phase name
     phase_best     = {}   # best-visibility entry per phase name
     phase_best_frame = {} # actual BGR frame for the best-visibility sample per phase
+    phase_best_frame_idx = {}  # frame index in the original video for each phase
 
     with mp_pose.Pose(
         static_image_mode=True,
@@ -475,9 +477,11 @@ def extract_pose_data(video_path: str) -> dict:
             if phase_name not in phase_best or avg_vis > phase_best[phase_name]["visibility"]:
                 phase_best[phase_name] = {"angles": angles, "visibility": round(avg_vis, 2)}
                 phase_best_frame[phase_name] = (frame.copy(), pr.pose_landmarks)
+                phase_best_frame_idx[phase_name] = target_frame
 
     cap.release()
-    result["phases_summary"] = phase_best
+    result["phases_summary"]      = phase_best
+    result["phase_frame_indices"] = phase_best_frame_idx
 
     # ── Step 3: Annotate the best frame for each phase ────────────────────────
     for phase_name, (bgr_frame, landmarks) in phase_best_frame.items():

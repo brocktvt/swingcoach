@@ -31,6 +31,8 @@ _MIGRATIONS = [
     "ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS secondary_goal VARCHAR",
     # user_profiles: first_name added so coaching script can address the golfer by name
     "ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS first_name VARCHAR",
+    # analyses: store phase frame indices so video clips can be extracted on demand
+    "ALTER TABLE analyses ADD COLUMN IF NOT EXISTS swing_frames_json TEXT",
 ]
 
 async def run_migrations():
@@ -95,8 +97,9 @@ class Analysis(Base):
     issues_json     = Column(Text, nullable=True)    # JSON array
     drills_json     = Column(Text, nullable=True)    # JSON array
     angles_json     = Column(Text, nullable=True)    # JSON array
-    coaching_script = Column(Text, nullable=True)    # spoken coaching text
-    video_path    = Column(String, nullable=True)
+    coaching_script    = Column(Text, nullable=True)    # spoken coaching text
+    video_path         = Column(String, nullable=True)
+    swing_frames_json  = Column(Text, nullable=True)    # {phase_name: frame_index} for lazy clip extraction
     issue_count   = Column(Integer, default=0)
     drill_count   = Column(Integer, default=0)
     created_at    = Column(DateTime, default=datetime.utcnow)

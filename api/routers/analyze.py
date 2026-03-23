@@ -1,10 +1,12 @@
 """
 routers/analyze.py — Swing video upload, pose analysis, Claude feedback
 """
-import uuid, json, aiofiles
+import uuid, json, aiofiles, io, tempfile, asyncio
 from datetime import datetime
 from pathlib import Path
-from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException
+from functools import lru_cache
+from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from jose import jwt, JWTError
@@ -103,6 +105,7 @@ async def analyze_swing(
     profile_dict = None
     if profile_row:
         profile_dict = {
+            "first_name":      profile_row.first_name,
             "handicap":        profile_row.handicap,
             "rounds_per_year": profile_row.rounds_per_year,
             "age":             profile_row.age,
@@ -136,6 +139,7 @@ async def analyze_swing(
         angles_json=json.dumps(feedback.get("angle_comparisons", [])),
         coaching_script=feedback.get("coaching_script", ""),
         video_path=str(video_path),
+        swing_frames_json=json.dumps(pose_data.get("phase_frame_indices", {})),
         issue_count=len(feedback.get("issues", [])),
         drill_count=len(feedback.get("drills", [])),
     )
@@ -211,6 +215,112 @@ async def list_pros(club_type: str = "driver"):
         {"id": pid, "name": p["name"], "note": p["style"][:80] + "…"}
         for pid, p in PRO_REFERENCES.items()
     ]
+
+
+# ── GET /analyses/{id}/clip/{phase_name} ─────────────────────────────────────
+# Lazy video clip extraction.  Auth via ?token= query param so expo-video can
+# fetch the URL directly (it doesn't support custom request headers).
+# Clips are extracted on first request and cached in-memory (per process).
+
+_clip_cache: dict[str, bytes] = {}   # key: "{analysis_id}:{phase_name}"
+
+
+def _extract_clip_bytes(video_path: str, center_frame: int, fps: float,
+                        duration_s: float = 2.0) -> bytes:
+    """
+    Extract a short MP4 clip centred on `center_frame` from `video_path`.
+    Returns raw MP4 bytes.
+    """
+    import cv2
+
+    half = int(fps * duration_s / 2)
+    start = max(0, center_frame - half)
+
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        raise ValueError(f"Cannot open video: {video_path}")
+
+    total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    end   = min(total - 1, center_frame + half)
+    w     = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    h     = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+    # Write to a temp file; cv2 VideoWriter needs a file path
+    with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as tmp:
+        tmp_path = tmp.name
+
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    out    = cv2.VideoWriter(tmp_path, fourcc, fps, (w, h))
+
+    cap.set(cv2.CAP_PROP_POS_FRAMES, start)
+    for _ in range(end - start + 1):
+        ok, frame = cap.read()
+        if not ok:
+            break
+        out.write(frame)
+
+    cap.release()
+    out.release()
+
+    data = Path(tmp_path).read_bytes()
+    Path(tmp_path).unlink(missing_ok=True)
+    return data
+
+
+@router.get("/analyses/{analysis_id}/clip/{phase_name}")
+async def get_phase_clip(
+    analysis_id: str,
+    phase_name:  str,
+    token:       str = Query(..., description="JWT access token"),
+    db:          AsyncSession = Depends(get_db),
+):
+    # Verify token manually (no Bearer header — expo-video fetches plain URLs)
+    try:
+        payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
+        user_id = payload.get("sub")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid or expired token.")
+
+    row = (await db.execute(
+        select(Analysis).where(Analysis.id == analysis_id, Analysis.user_id == user_id)
+    )).scalar_one_or_none()
+    if not row:
+        raise HTTPException(status_code=404, detail="Analysis not found.")
+    if not row.video_path or not Path(row.video_path).exists():
+        raise HTTPException(status_code=404, detail="Source video not available.")
+
+    frame_indices = json.loads(row.swing_frames_json or "{}")
+    if phase_name not in frame_indices:
+        raise HTTPException(status_code=404, detail=f"No frame data for phase: {phase_name}")
+
+    cache_key = f"{analysis_id}:{phase_name}"
+    if cache_key not in _clip_cache:
+        import cv2
+        cap = cv2.VideoCapture(row.video_path)
+        fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
+        cap.release()
+
+        # Run blocking extraction in a thread so we don't block the event loop
+        clip_bytes = await asyncio.get_event_loop().run_in_executor(
+            None,
+            _extract_clip_bytes,
+            row.video_path,
+            frame_indices[phase_name],
+            fps,
+            2.0,
+        )
+        _clip_cache[cache_key] = clip_bytes
+
+    data = _clip_cache[cache_key]
+    return StreamingResponse(
+        io.BytesIO(data),
+        media_type="video/mp4",
+        headers={
+            "Content-Length": str(len(data)),
+            "Accept-Ranges":  "bytes",
+            "Cache-Control":  "private, max-age=3600",
+        },
+    )
 
 
 # ── Formatters ────────────────────────────────────────────────────────────────

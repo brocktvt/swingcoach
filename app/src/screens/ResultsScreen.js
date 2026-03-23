@@ -1,15 +1,18 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView,
   TouchableOpacity, ActivityIndicator, Image,
 } from 'react-native';
+import { VideoView, useVideoPlayer } from 'expo-video';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors, spacing, radius, shadow } from '../theme';
 import { analysis } from '../services/api';
+import { API_BASE_URL } from '../services/api';
 import {
   speakCoachingScript,
   speakDrill,
   stopSpeaking,
-  isSpeaking,
   buildFallbackScript,
 } from '../services/audio';
 
@@ -24,36 +27,145 @@ function ScoreRing({ score }) {
   );
 }
 
-// ── Annotated frame snapshot ──────────────────────────────────────────────────
-function PhaseSnapshot({ phase, phaseImages }) {
-  if (!phaseImages || !phase) return null;
-  const b64 = phaseImages[phase];
+// ── Phase media: still image + swipeable video clip ───────────────────────────
+function PhaseMedia({ phase, phaseImages, analysisId }) {
+  const b64 = phaseImages?.[phase];
+  const [page, setPage]           = useState(0);
+  const [pageWidth, setPageWidth] = useState(0);
+  const [clipReady, setClipReady] = useState(false);
+  const [clipLoading, setClipLoading] = useState(false);
+  const [clipError, setClipError] = useState(false);
+
+  // Create video player upfront (hook must be unconditional)
+  const player = useVideoPlayer(null, (p) => {
+    p.loop = true;
+  });
+
+  const loadClip = async () => {
+    if (clipReady || clipLoading || clipError || !analysisId) return;
+    setClipLoading(true);
+    try {
+      const token = await AsyncStorage.getItem('auth_token');
+      const url = `${API_BASE_URL}/analyses/${analysisId}/clip/${phase}?token=${encodeURIComponent(token)}`;
+      player.replace({ uri: url });
+      player.play();
+      setClipReady(true);
+    } catch (e) {
+      console.warn('[SwingCoach] Clip load failed:', e);
+      setClipError(true);
+    } finally {
+      setClipLoading(false);
+    }
+  };
+
+  // Stop video when scrolled back to still image
+  useEffect(() => {
+    if (page === 0 && clipReady) {
+      try { player.pause(); } catch (_) {}
+    } else if (page === 1 && clipReady) {
+      try { player.play(); } catch (_) {}
+    }
+  }, [page]);
+
   if (!b64) return null;
+
+  const handleScroll = (e) => {
+    const w = e.nativeEvent.layoutMeasurement.width;
+    if (!w) return;
+    const newPage = Math.round(e.nativeEvent.contentOffset.x / w);
+    if (newPage !== page) {
+      setPage(newPage);
+      if (newPage === 1) loadClip();
+    }
+  };
+
+  const pgStyle = pageWidth > 0 ? { width: pageWidth, height: 260 } : { width: '100%', height: 260 };
+
   return (
-    <View style={s.snapshotWrap}>
-      <Image
-        source={{ uri: `data:image/jpeg;base64,${b64}` }}
-        style={s.snapshotImg}
-        resizeMode="cover"
-      />
-      <View style={s.snapshotLabel}>
-        <Text style={s.snapshotLabelText}>
-          {phase.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
-        </Text>
-      </View>
+    <View
+      style={s.mediaWrap}
+      onLayout={(e) => setPageWidth(e.nativeEvent.layout.width)}
+    >
+      {pageWidth > 0 && (
+      <ScrollView
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        onMomentumScrollEnd={handleScroll}
+        scrollEventThrottle={16}
+      >
+        {/* ── Page 0: annotated still frame ── */}
+        <View style={[s.mediaPage, pgStyle]}>
+          <Image
+            source={{ uri: `data:image/jpeg;base64,${b64}` }}
+            style={s.mediaImg}
+            resizeMode="cover"
+          />
+          <View style={s.mediaLabel}>
+            <Text style={s.mediaLabelText}>
+              {phase.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
+            </Text>
+          </View>
+          {/* Nudge hint — only show if analysis has a video to offer */}
+          {analysisId && (
+            <View style={s.swipeHint}>
+              <Text style={s.swipeHintText}>video ›</Text>
+            </View>
+          )}
+        </View>
+
+        {/* ── Page 1: video clip ── */}
+        {analysisId && (
+          <View style={[s.mediaPage, pgStyle]}>
+            {clipReady ? (
+              <VideoView
+                player={player}
+                style={s.mediaImg}
+                contentFit="cover"
+                nativeControls={false}
+              />
+            ) : (
+              <View style={s.clipPlaceholder}>
+                {clipLoading ? (
+                  <>
+                    <ActivityIndicator color={colors.tealLight} size="small" />
+                    <Text style={s.clipPlaceholderText}>Loading clip…</Text>
+                  </>
+                ) : clipError ? (
+                  <Text style={s.clipPlaceholderText}>Clip unavailable</Text>
+                ) : (
+                  <Text style={s.clipPlaceholderText}>Swipe to load clip</Text>
+                )}
+              </View>
+            )}
+            <View style={s.mediaLabel}>
+              <Text style={s.mediaLabelText}>Video Clip</Text>
+            </View>
+          </View>
+        )}
+      </ScrollView>
+      )}
+
+      {/* Dot indicators */}
+      {analysisId && pageWidth > 0 && (
+        <View style={s.dotsRow}>
+          <View style={[s.dot, page === 0 ? s.dotActive : s.dotInactive]} />
+          <View style={[s.dot, page === 1 ? s.dotActive : s.dotInactive]} />
+        </View>
+      )}
     </View>
   );
 }
 
 // ── Positive card ─────────────────────────────────────────────────────────────
-function PositiveCard({ item, phaseImages }) {
+function PositiveCard({ item, phaseImages, analysisId }) {
   return (
     <View style={s.positiveCard}>
       <View style={s.positiveHeader}>
         <Text style={s.positiveCheck}>✓</Text>
         <Text style={s.positiveTitle}>{item.title}</Text>
       </View>
-      <PhaseSnapshot phase={item.phase} phaseImages={phaseImages} />
+      <PhaseMedia phase={item.phase} phaseImages={phaseImages} analysisId={analysisId} />
       <Text style={s.positiveBody}>{item.description}</Text>
       {item.phase && (
         <View style={s.phaseTag}>
@@ -65,7 +177,7 @@ function PositiveCard({ item, phaseImages }) {
 }
 
 // ── Issue card ────────────────────────────────────────────────────────────────
-function IssueCard({ issue, phaseImages }) {
+function IssueCard({ issue, phaseImages, analysisId }) {
   const severityColor = {
     high:   colors.error,
     medium: colors.warning,
@@ -78,7 +190,7 @@ function IssueCard({ issue, phaseImages }) {
         <View style={[s.severityDot, { backgroundColor: severityColor }]} />
         <Text style={s.issueTitle}>{issue.title}</Text>
       </View>
-      <PhaseSnapshot phase={issue.phase} phaseImages={phaseImages} />
+      <PhaseMedia phase={issue.phase} phaseImages={phaseImages} analysisId={analysisId} />
       <Text style={s.issueBody}>{issue.description}</Text>
       {issue.phase && (
         <View style={s.phaseTag}>
@@ -133,33 +245,36 @@ function PositionRow({ label, yours, pro, diff }) {
 }
 
 // ── Audio player bar ──────────────────────────────────────────────────────────
-function AudioBar({ data, onPlayStateChange }) {
+function AudioBar({ data }) {
   const [playing, setPlaying] = useState(false);
+
+  // Keep screen awake while coaching audio is playing
+  useEffect(() => {
+    if (playing) {
+      activateKeepAwakeAsync();
+    } else {
+      deactivateKeepAwake();
+    }
+  }, [playing]);
+
+  // Clean up on unmount
+  useEffect(() => {
+    return () => {
+      stopSpeaking();
+      deactivateKeepAwake();
+    };
+  }, []);
 
   const handleToggle = async () => {
     if (playing) {
       await stopSpeaking();
       setPlaying(false);
-      onPlayStateChange?.(false);
     } else {
       setPlaying(true);
-      onPlayStateChange?.(true);
       const script = data.coaching_script || buildFallbackScript(data);
-      await speakCoachingScript(
-        script,
-        null,
-        () => {
-          setPlaying(false);
-          onPlayStateChange?.(false);
-        },
-      );
+      await speakCoachingScript(script, null, () => setPlaying(false));
     }
   };
-
-  // Stop on unmount
-  useEffect(() => {
-    return () => { stopSpeaking(); };
-  }, []);
 
   return (
     <TouchableOpacity style={[s.audioBar, playing && s.audioBarActive]} onPress={handleToggle}>
@@ -176,8 +291,8 @@ function AudioBar({ data, onPlayStateChange }) {
       </View>
       {playing && (
         <View style={s.audioBarWave}>
-          {[1,2,3,4].map(i => (
-            <View key={i} style={[s.audioBarDot, { opacity: 0.4 + (i * 0.15) }]} />
+          {[1, 2, 3, 4].map((i) => (
+            <View key={i} style={[s.audioBarDot, { opacity: 0.4 + i * 0.15 }]} />
           ))}
         </View>
       )}
@@ -224,15 +339,12 @@ export default function ResultsScreen({ route, navigation }) {
     );
   }
 
-  const positives    = data.positives || [];
-  const issues       = data.issues    || [];
-  const drills       = data.drills    || [];
-  const angles       = data.angle_comparisons || [];
-  const phaseImages  = data.phase_images || {};
-
-  const handleSpeak = async (drill) => {
-    await speakDrill(drill);
-  };
+  const positives   = data.positives || [];
+  const issues      = data.issues    || [];
+  const drills      = data.drills    || [];
+  const angles      = data.angle_comparisons || [];
+  const phaseImages = data.phase_images || {};
+  const aid         = data.id;   // analysis ID for clip URLs
 
   return (
     <SafeAreaView style={s.safe}>
@@ -294,7 +406,9 @@ export default function ResultsScreen({ route, navigation }) {
             {positives.length === 0 ? (
               <Text style={s.emptyTab}>Processing positives…</Text>
             ) : (
-              positives.map((item, i) => <PositiveCard key={i} item={item} phaseImages={phaseImages} />)
+              positives.map((item, i) => (
+                <PositiveCard key={i} item={item} phaseImages={phaseImages} analysisId={aid} />
+              ))
             )}
           </View>
         )}
@@ -305,7 +419,9 @@ export default function ResultsScreen({ route, navigation }) {
             {issues.length === 0 ? (
               <Text style={s.emptyTab}>No issues detected — great swing! 🎉</Text>
             ) : (
-              issues.map((issue, i) => <IssueCard key={i} issue={issue} phaseImages={phaseImages} />)
+              issues.map((issue, i) => (
+                <IssueCard key={i} issue={issue} phaseImages={phaseImages} analysisId={aid} />
+              ))
             )}
           </View>
         )}
@@ -317,7 +433,7 @@ export default function ResultsScreen({ route, navigation }) {
               <Text style={s.emptyTab}>No drills recommended — keep doing what you're doing!</Text>
             ) : (
               drills.map((drill, i) => (
-                <DrillCard key={i} drill={drill} index={i} onSpeak={handleSpeak} />
+                <DrillCard key={i} drill={drill} index={i} onSpeak={speakDrill} />
               ))
             )}
             {drills.length > 0 && (
@@ -454,22 +570,28 @@ const s = StyleSheet.create({
   issueTitle:   { fontSize: 15, fontWeight: '700', color: colors.white, flex: 1 },
   issueBody:    { fontSize: 13, color: colors.grey1, lineHeight: 20 },
 
-  // Annotated frame snapshot
-  snapshotWrap: {
+  // Phase media (still + video pager)
+  mediaWrap: {
     borderRadius: radius.sm,
     overflow: 'hidden',
     marginBottom: 10,
     marginTop: 6,
-    position: 'relative',
     backgroundColor: colors.bgAlt,
     borderWidth: 1,
     borderColor: colors.grey3,
   },
-  snapshotImg: {
-    width: '100%',
+  mediaScroll: { width: '100%' },
+  mediaPage: {
+    width: 310,        // fixed — matches card inner width (adjust if needed)
     height: 260,
+    position: 'relative',
+    overflow: 'hidden',
   },
-  snapshotLabel: {
+  mediaImg: {
+    width: '100%',
+    height: '100%',
+  },
+  mediaLabel: {
     position: 'absolute',
     top: 0,
     left: 0,
@@ -478,13 +600,44 @@ const s = StyleSheet.create({
     paddingVertical: 3,
     borderBottomRightRadius: radius.sm,
   },
-  snapshotLabelText: {
+  mediaLabelText: {
     fontSize: 10,
     fontWeight: '700',
     color: colors.tealLight,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
+  swipeHint: {
+    position: 'absolute',
+    bottom: 6,
+    right: 8,
+    backgroundColor: 'rgba(8,14,24,0.65)',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: radius.full,
+  },
+  swipeHintText: { fontSize: 10, color: colors.grey2 },
+
+  clipPlaceholder: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: colors.bgAlt,
+  },
+  clipPlaceholderText: { fontSize: 12, color: colors.grey2 },
+
+  // Dot indicators
+  dotsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 5,
+    paddingVertical: 6,
+    backgroundColor: colors.bgAlt,
+  },
+  dot:        { width: 6, height: 6, borderRadius: 3 },
+  dotActive:  { backgroundColor: colors.tealLight },
+  dotInactive:{ backgroundColor: colors.grey3 },
 
   phaseTag: {
     alignSelf: 'flex-start',

@@ -21,6 +21,48 @@ const VOICE_OPTIONS = {
   volume: 1.0,
 };
 
+// Preferred male voices in priority order.
+// iOS ships many voices; we pick the first one that's installed on the device.
+// Aaron / Evan / Rishi / Nathan are all natural-sounding US/UK male voices.
+// Alex is the classic fallback that ships on every iOS device.
+const PREFERRED_MALE_VOICES = [
+  'com.apple.voice.compact.en-US.Aaron',        // natural US male (iOS 16+)
+  'com.apple.voice.compact.en-US.Evan',         // slightly deeper US male
+  'com.apple.voice.compact.en-US.Rishi',        // warmer US male
+  'com.apple.voice.enhanced.en-US.Evan',        // enhanced quality version
+  'com.apple.voice.enhanced.en-US.Aaron',
+  'com.apple.ttsbundle.Alex-compact',           // classic iOS US male (always present)
+  'com.apple.voice.compact.en-GB.Daniel',       // UK male
+  'com.apple.ttsbundle.Daniel-compact',
+];
+
+let _selectedVoice = undefined;   // undefined = not yet resolved; null = no match found
+
+async function _getVoice() {
+  if (_selectedVoice !== undefined) return _selectedVoice;
+  try {
+    const available = await Speech.getAvailableVoicesAsync();
+    const ids = new Set(available.map(v => v.identifier));
+    for (const id of PREFERRED_MALE_VOICES) {
+      if (ids.has(id)) {
+        _selectedVoice = id;
+        console.log('[SwingCoach] Selected voice:', id);
+        return id;
+      }
+    }
+    // Fallback: any enhanced English voice
+    const fallback = available.find(v => v.language?.startsWith('en') && v.quality === 'Enhanced');
+    _selectedVoice = fallback?.identifier ?? null;
+    return _selectedVoice;
+  } catch {
+    _selectedVoice = null;
+    return null;
+  }
+}
+
+// Warm up voice selection on module load
+_getVoice();
+
 // Silent WAV primer
 // 2444-byte WAV: 44-byte RIFF/PCM header + 2400 bytes of 16-bit silence.
 // Generated with Python struct.pack -- verified correct RIFF chunk sizes.
@@ -129,9 +171,11 @@ export async function speakCoachingScript(script, onProgress, onDone) {
   await _primeiOSAudio();
 
   _speaking = true;
+  const voice = await _getVoice();
 
   Speech.speak(script, {
     ...VOICE_OPTIONS,
+    ...(voice ? { voice } : {}),
     onDone: () => {
       _speaking = false;
       onDone?.();
@@ -153,8 +197,9 @@ export async function speakCoachingScript(script, onProgress, onDone) {
 export async function speakQuickSummary(score, proName) {
   await stopSpeaking();
   await _primeiOSAudio();
+  const voice = await _getVoice();
   const line = scoreToLine(score, proName);
-  Speech.speak(line, { ...VOICE_OPTIONS, rate: 0.92 });
+  Speech.speak(line, { ...VOICE_OPTIONS, rate: 0.92, ...(voice ? { voice } : {}) });
 }
 
 /**
@@ -163,8 +208,9 @@ export async function speakQuickSummary(score, proName) {
 export async function speakDrill(drill) {
   await stopSpeaking();
   await _primeiOSAudio();
+  const voice = await _getVoice();
   const text = `${drill.title}. ${drill.instructions} ${drill.reps ? `Do ${drill.reps}.` : ''}`;
-  Speech.speak(text, VOICE_OPTIONS);
+  Speech.speak(text, { ...VOICE_OPTIONS, ...(voice ? { voice } : {}) });
 }
 
 /**
