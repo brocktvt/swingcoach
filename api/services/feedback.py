@@ -61,6 +61,51 @@ PRO_REFERENCES = {
             "impact":         { "hip_rotation": 30, "shoulder_tilt": 88, "lead_elbow": 176, "trail_elbow": 112 },
         }
     },
+    "scottie_scheffler": {
+        "name": "Scottie Scheffler",
+        "style": "Methodical, ultra-consistent ball-striker. Strong grip, deliberate tempo, excellent lag retention, and a very reliable impact position. World #1 known for repeatable fundamentals.",
+        "benchmarks": {
+            "address":        { "hip_rotation": 90, "shoulder_tilt": 87, "spine_angle": 74, "lead_knee": 164, "trail_knee": 160 },
+            "top":            { "hip_rotation": 48, "shoulder_tilt": 69, "trail_elbow": 87, "lead_elbow": 167 },
+            "impact":         { "hip_rotation": 27, "shoulder_tilt": 86, "lead_elbow": 177, "trail_elbow": 109 },
+        }
+    },
+    "collin_morikawa": {
+        "name": "Collin Morikawa",
+        "style": "Elite iron-player with precise face control and a slightly inside-out path. Short, compact backswing with exceptional downswing sequencing and a very flat lead wrist at impact.",
+        "benchmarks": {
+            "address":        { "hip_rotation": 90, "shoulder_tilt": 88, "spine_angle": 77, "lead_knee": 167, "trail_knee": 163 },
+            "top":            { "hip_rotation": 52, "shoulder_tilt": 73, "trail_elbow": 93, "lead_elbow": 168 },
+            "impact":         { "hip_rotation": 29, "shoulder_tilt": 89, "lead_elbow": 178, "trail_elbow": 111 },
+        }
+    },
+    "dustin_johnson": {
+        "name": "Dustin Johnson",
+        "style": "Exceptionally long with an athletic, bowed lead wrist at the top. Wide one-piece takeaway, massive hip clearance, and a very powerful squat-and-push move through impact.",
+        "benchmarks": {
+            "address":        { "hip_rotation": 90, "shoulder_tilt": 85, "spine_angle": 71, "lead_knee": 162, "trail_knee": 157 },
+            "top":            { "hip_rotation": 42, "shoulder_tilt": 67, "trail_elbow": 86, "lead_elbow": 162 },
+            "impact":         { "hip_rotation": 22, "shoulder_tilt": 84, "lead_elbow": 176, "trail_elbow": 106 },
+        }
+    },
+    "xander_schauffele": {
+        "name": "Xander Schauffele",
+        "style": "Smooth, athletic swing with excellent tempo and a reliable fade shape. Great posture, consistent spine angle, and effortless-looking power generation through the kinematic sequence.",
+        "benchmarks": {
+            "address":        { "hip_rotation": 90, "shoulder_tilt": 87, "spine_angle": 75, "lead_knee": 165, "trail_knee": 161 },
+            "top":            { "hip_rotation": 47, "shoulder_tilt": 70, "trail_elbow": 90, "lead_elbow": 170 },
+            "impact":         { "hip_rotation": 29, "shoulder_tilt": 87, "lead_elbow": 176, "trail_elbow": 111 },
+        }
+    },
+    "lydia_ko": {
+        "name": "Lydia Ko",
+        "style": "Technically refined swing with exceptional consistency. Upright posture, full shoulder turn, controlled tempo, and a very dependable ball-striking pattern ideal for accuracy-focused players.",
+        "benchmarks": {
+            "address":        { "hip_rotation": 90, "shoulder_tilt": 88, "spine_angle": 77, "lead_knee": 167, "trail_knee": 163 },
+            "top":            { "hip_rotation": 51, "shoulder_tilt": 72, "trail_elbow": 92, "lead_elbow": 171 },
+            "impact":         { "hip_rotation": 31, "shoulder_tilt": 89, "lead_elbow": 175, "trail_elbow": 113 },
+        }
+    },
 }
 
 SYSTEM_PROMPT = """You are SwingCoach, an expert golf instructor and biomechanics analyst with 20+ years of experience coaching amateurs and tour pros. You analyze golf swing data and provide specific, actionable feedback.

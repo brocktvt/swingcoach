@@ -467,7 +467,7 @@ const s = StyleSheet.create({
   },
   snapshotImg: {
     width: '100%',
-    height: 170,
+    height: 260,
   },
   snapshotLabel: {
     position: 'absolute',

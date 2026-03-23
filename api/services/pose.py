@@ -167,9 +167,11 @@ _PHASE_HIGHLIGHT_JOINTS = {
 
 def _annotate_frame(frame: "np.ndarray", landmarks, phase_name: str) -> str:
     """
-    Draw the MediaPipe skeleton on a video frame and return a base64-encoded JPEG.
+    Draw the MediaPipe skeleton on a video frame, crop to the golfer's full body,
+    and return a base64-encoded JPEG.
 
-    - Skeleton connections: thin teal lines
+    - Crops tightly around the visible landmarks (full body, head-to-feet)
+    - Skeleton connections: teal lines
     - All key joints: small white-outlined teal dots
     - Phase-relevant joints: larger orange circles to draw the eye
 
@@ -178,8 +180,8 @@ def _annotate_frame(frame: "np.ndarray", landmarks, phase_name: str) -> str:
     try:
         h, w = frame.shape[:2]
 
-        # Resize to max 640px wide to keep payload manageable
-        max_w = 640
+        # Resize to max 720px wide for quality; landmark coords scale with it
+        max_w = 720
         if w > max_w:
             scale = max_w / w
             frame = cv2.resize(frame, (max_w, int(h * scale)), interpolation=cv2.INTER_AREA)
@@ -190,10 +192,10 @@ def _annotate_frame(frame: "np.ndarray", landmarks, phase_name: str) -> str:
         highlight_set = set(_PHASE_HIGHLIGHT_JOINTS.get(phase_name, []))
 
         # Draw skeleton connections — teal lines
-        TEAL    = (170, 178, 32)   # BGR
-        ORANGE  = (0, 128, 255)    # BGR — highlighted joints
-        WHITE   = (255, 255, 255)
-        JOINT   = (200, 220, 32)   # teal-ish
+        TEAL   = (170, 200, 32)    # BGR teal
+        ORANGE = (0, 140, 255)     # BGR orange — highlighted joints
+        WHITE  = (255, 255, 255)
+        JOINT  = (140, 210, 32)    # teal-ish
 
         for start_lm, end_lm in _SKELETON_CONNECTIONS:
             s = lm[start_lm]
@@ -201,7 +203,7 @@ def _annotate_frame(frame: "np.ndarray", landmarks, phase_name: str) -> str:
             if s.visibility > 0.4 and e.visibility > 0.4:
                 sx, sy = int(s.x * w), int(s.y * h)
                 ex, ey = int(e.x * w), int(e.y * h)
-                cv2.line(annotated, (sx, sy), (ex, ey), TEAL, 2, cv2.LINE_AA)
+                cv2.line(annotated, (sx, sy), (ex, ey), TEAL, 3, cv2.LINE_AA)
 
         # Draw joints
         for joint_lm in _KEY_JOINTS:
@@ -209,21 +211,42 @@ def _annotate_frame(frame: "np.ndarray", landmarks, phase_name: str) -> str:
             if pt.visibility > 0.4:
                 cx, cy = int(pt.x * w), int(pt.y * h)
                 if joint_lm in highlight_set:
-                    # Phase-relevant joint: orange circle with outline
-                    cv2.circle(annotated, (cx, cy), 9, ORANGE, -1, cv2.LINE_AA)
-                    cv2.circle(annotated, (cx, cy), 11, WHITE, 1, cv2.LINE_AA)
+                    cv2.circle(annotated, (cx, cy), 11, ORANGE, -1, cv2.LINE_AA)
+                    cv2.circle(annotated, (cx, cy), 13, WHITE, 1, cv2.LINE_AA)
                 else:
-                    # Normal joint: teal dot
-                    cv2.circle(annotated, (cx, cy), 5, JOINT, -1, cv2.LINE_AA)
-                    cv2.circle(annotated, (cx, cy), 6, WHITE, 1, cv2.LINE_AA)
+                    cv2.circle(annotated, (cx, cy), 6, JOINT, -1, cv2.LINE_AA)
+                    cv2.circle(annotated, (cx, cy), 8, WHITE, 1, cv2.LINE_AA)
 
-        # Phase label in corner
+        # ── Crop to golfer bounding box ───────────────────────────────────────
+        # Collect pixel coords of ALL landmarks with decent visibility
+        vis_pts = [
+            (lm[i].x * w, lm[i].y * h)
+            for i in range(len(lm))
+            if lm[i].visibility > 0.3
+        ]
+        if vis_pts:
+            xs = [p[0] for p in vis_pts]
+            ys = [p[1] for p in vis_pts]
+            body_w = max(xs) - min(xs)
+            body_h = max(ys) - min(ys)
+            # Generous padding: 25% horizontal, 12% vertical
+            pad_x = max(30, int(body_w * 0.28))
+            pad_y = max(30, int(body_h * 0.12))
+            crop_x0 = max(0,   int(min(xs)) - pad_x)
+            crop_y0 = max(0,   int(min(ys)) - pad_y)
+            crop_x1 = min(w,   int(max(xs)) + pad_x)
+            crop_y1 = min(h,   int(max(ys)) + pad_y)
+            annotated = annotated[crop_y0:crop_y1, crop_x0:crop_x1]
+        # else: fall back to full frame
+
+        # Phase label overlay
         label = phase_name.replace("_", " ").upper()
-        cv2.rectangle(annotated, (0, 0), (len(label) * 9 + 16, 28), (8, 14, 24), -1)
-        cv2.putText(annotated, label, (8, 20),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (100, 220, 200), 1, cv2.LINE_AA)
+        lbl_w = len(label) * 10 + 18
+        cv2.rectangle(annotated, (0, 0), (lbl_w, 30), (8, 14, 24), -1)
+        cv2.putText(annotated, label, (8, 22),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.65, (100, 220, 200), 1, cv2.LINE_AA)
 
-        ok, buf = cv2.imencode(".jpg", annotated, [cv2.IMWRITE_JPEG_QUALITY, 72])
+        ok, buf = cv2.imencode(".jpg", annotated, [cv2.IMWRITE_JPEG_QUALITY, 75])
         if not ok:
             return ""
         return base64.b64encode(buf.tobytes()).decode("utf-8")

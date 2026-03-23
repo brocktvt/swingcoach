@@ -24,22 +24,26 @@ const VOICE_OPTIONS = {
 };
 
 // ── iOS audio session setup ───────────────────────────────────────────────────
-// Called before every speak() call.
-// playsInSilentModeIOS: true lets the app play audio even when the hardware
-// silent/mute switch is on — critical for coaching audio on the range.
+// playsInSilentModeIOS: true overrides the hardware mute/silent switch on iOS
+// so coaching audio plays even when the phone is silenced on the course.
+// We only pass the one flag that matters — extra parameters can throw on some
+// expo-av versions, and we'd rather fail silently than block speech.
+let _audioSessionConfigured = false;
+
 async function _configureAudioSession() {
+  if (_audioSessionConfigured) return;
   try {
     await Audio.setAudioModeAsync({
-      playsInSilentModeIOS:      true,
-      allowsRecordingIOS:        false,
-      staysActiveInBackground:   false,
-      shouldDuckAndroid:         true,
+      playsInSilentModeIOS: true,
     });
+    _audioSessionConfigured = true;
   } catch (err) {
-    // Non-fatal — speech will still work on Android or if expo-av not available
-    console.warn('Audio session config failed:', err);
+    console.warn('[SwingCoach] Audio session config failed:', err?.message ?? err);
   }
 }
+
+// Call once on module load so the session is ready before the user taps Play
+_configureAudioSession();
 
 // State
 let _speaking    = false;
