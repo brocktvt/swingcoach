@@ -140,6 +140,7 @@ async def analyze_swing(
         coaching_script=feedback.get("coaching_script", ""),
         video_path=str(video_path),
         swing_frames_json=json.dumps(pose_data.get("phase_frame_indices", {})),
+        phase_images_json=json.dumps(pose_data.get("phase_images", {})),
         issue_count=len(feedback.get("issues", [])),
         drill_count=len(feedback.get("drills", [])),
     )
@@ -200,11 +201,14 @@ async def get_analysis(
     feedback = {
         "overall_score":      row.overall_score,
         "summary":            row.summary,
+        "positives":          json.loads(row.positives_json or "[]"),
         "issues":             json.loads(row.issues_json or "[]"),
         "drills":             json.loads(row.drills_json or "[]"),
         "angle_comparisons":  json.loads(row.angles_json or "[]"),
+        "coaching_script":    row.coaching_script or "",
     }
-    return _format_analysis(row, feedback)
+    phase_images = json.loads(row.phase_images_json or "{}")
+    return _format_analysis(row, feedback, phase_images)
 
 
 # ── GET /pros ─────────────────────────────────────────────────────────────────
@@ -215,6 +219,32 @@ async def list_pros(club_type: str = "driver"):
         {"id": pid, "name": p["name"], "note": p["style"][:80] + "…"}
         for pid, p in PRO_REFERENCES.items()
     ]
+
+
+# ── DELETE /analyses/{id} ─────────────────────────────────────────────────────
+@router.delete("/analyses/{analysis_id}", status_code=204)
+async def delete_analysis(
+    analysis_id: str,
+    user:        User = Depends(current_user),
+    db:          AsyncSession = Depends(get_db),
+):
+    row = (await db.execute(
+        select(Analysis).where(Analysis.id == analysis_id, Analysis.user_id == user.id)
+    )).scalar_one_or_none()
+    if not row:
+        raise HTTPException(status_code=404, detail="Analysis not found.")
+
+    # Remove video file from disk
+    if row.video_path:
+        Path(row.video_path).unlink(missing_ok=True)
+
+    # Evict any cached clips for this analysis
+    for key in list(_clip_cache.keys()):
+        if key.startswith(f"{analysis_id}:"):
+            del _clip_cache[key]
+
+    await db.delete(row)
+    await db.commit()
 
 
 # ── GET /analyses/{id}/clip/{phase_name} ─────────────────────────────────────

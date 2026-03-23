@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, FlatList,
-  TouchableOpacity, ActivityIndicator, RefreshControl,
+  TouchableOpacity, ActivityIndicator, RefreshControl, Alert,
 } from 'react-native';
 import { colors, spacing, radius } from '../theme';
 import { analysis } from '../services/api';
@@ -12,7 +12,7 @@ function scoreColor(score) {
   return colors.error;
 }
 
-function HistoryItem({ item, onPress, delta }) {
+function HistoryItem({ item, onPress, onLongPress, delta }) {
   const clubEmoji = { driver: '🏌️', iron: '⛳', wedge: '🎯', putter: '🕳️' };
   const date = new Date(item.created_at).toLocaleDateString('en-US', {
     month: 'short', day: 'numeric', year: 'numeric',
@@ -27,7 +27,12 @@ function HistoryItem({ item, onPress, delta }) {
     : `↓ ${delta}`;
 
   return (
-    <TouchableOpacity style={s.item} onPress={() => onPress(item)}>
+    <TouchableOpacity
+      style={s.item}
+      onPress={() => onPress(item)}
+      onLongPress={() => onLongPress(item)}
+      delayLongPress={500}
+    >
       <View style={s.scoreCol}>
         <View style={[s.scoreBadge, { borderColor: color }]}>
           <Text style={[s.scoreText, { color }]}>{item.overall_score}</Text>
@@ -50,6 +55,8 @@ function HistoryItem({ item, onPress, delta }) {
     </TouchableOpacity>
   );
 }
+
+
 
 export default function HistoryScreen({ navigation }) {
   const [items,      setItems]      = useState([]);
@@ -80,6 +87,32 @@ export default function HistoryScreen({ navigation }) {
       screen: 'Results',
       params: { analysisId: item.id },
     });
+  };
+
+  const confirmDelete = (item) => {
+    const date = new Date(item.created_at).toLocaleDateString('en-US', {
+      month: 'short', day: 'numeric',
+    });
+    Alert.alert(
+      'Delete swing?',
+      `Remove your ${item.club_type} swing from ${date}? This can't be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await analysis.delete(item.id);
+              setItems(prev => prev.filter(i => i.id !== item.id));
+              if (items.length <= 1) setEmpty(true);
+            } catch (e) {
+              Alert.alert('Error', 'Could not delete swing. Please try again.');
+            }
+          },
+        },
+      ],
+    );
   };
 
   if (loading) {
@@ -115,11 +148,23 @@ export default function HistoryScreen({ navigation }) {
             // items are newest-first; delta = this score minus the previous (older) score
             const prev  = items[index + 1];
             const delta = prev ? item.overall_score - prev.overall_score : null;
-            return <HistoryItem item={item} onPress={goToResult} delta={delta} />;
+            return (
+              <HistoryItem
+                item={item}
+                onPress={goToResult}
+                onLongPress={confirmDelete}
+                delta={delta}
+              />
+            );
           }}
           contentContainerStyle={s.list}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.tealLight} />}
           showsVerticalScrollIndicator={false}
+          ListFooterComponent={
+            items.length > 0
+              ? <Text style={s.deleteHint}>Hold any swing to delete it</Text>
+              : null
+          }
         />
       )}
     </SafeAreaView>
@@ -153,6 +198,7 @@ const s = StyleSheet.create({
   itemMeta:    { fontSize: 12, color: colors.grey2, marginTop: 2 },
   itemIssues:  { fontSize: 12, color: colors.tealLight, marginTop: 2 },
   arrow:       { color: colors.grey2, fontSize: 22 },
+  deleteHint:  { textAlign: 'center', color: colors.grey3, fontSize: 11, paddingVertical: spacing.lg },
   emptyEmoji:  { fontSize: 52, marginBottom: spacing.md },
   emptyTitle:  { fontSize: 18, fontWeight: '800', color: colors.white, marginBottom: 6 },
   emptyBody:   { fontSize: 13, color: colors.grey2, textAlign: 'center', marginBottom: spacing.lg },

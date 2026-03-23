@@ -96,6 +96,13 @@ export const analysis = {
     const { data } = await client.get(`/analyses/${id}`);
     return data;
   },
+
+  /**
+   * Permanently delete an analysis and its video file.
+   */
+  async delete(id) {
+    await client.delete(`/analyses/${id}`);
+  },
 };
 
 // ── Golfer Profile ───────────────────────────────────────────────────────────

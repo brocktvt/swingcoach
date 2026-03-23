@@ -33,6 +33,8 @@ _MIGRATIONS = [
     "ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS first_name VARCHAR",
     # analyses: store phase frame indices so video clips can be extracted on demand
     "ALTER TABLE analyses ADD COLUMN IF NOT EXISTS swing_frames_json TEXT",
+    # analyses: store annotated phase images so they load correctly from History
+    "ALTER TABLE analyses ADD COLUMN IF NOT EXISTS phase_images_json TEXT",
 ]
 
 async def run_migrations():
@@ -100,6 +102,7 @@ class Analysis(Base):
     coaching_script    = Column(Text, nullable=True)    # spoken coaching text
     video_path         = Column(String, nullable=True)
     swing_frames_json  = Column(Text, nullable=True)    # {phase_name: frame_index} for lazy clip extraction
+    phase_images_json  = Column(Text, nullable=True)    # {phase_name: base64_jpeg} persisted for history view
     issue_count   = Column(Integer, default=0)
     drill_count   = Column(Integer, default=0)
     created_at    = Column(DateTime, default=datetime.utcnow)

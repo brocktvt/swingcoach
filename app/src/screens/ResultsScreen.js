@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView,
-  TouchableOpacity, ActivityIndicator, Image, Share, Platform,
+  TouchableOpacity, ActivityIndicator, Image, Share, Platform, Animated,
 } from 'react-native';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
@@ -92,12 +92,29 @@ async function sharePhaseImage(b64, phase, caption = '') {
   }
 }
 
-// ── Score ring ────────────────────────────────────────────────────────────────
+// ── Score ring (animated count-up) ───────────────────────────────────────────
 function ScoreRing({ score }) {
-  const color = score >= 80 ? colors.success : score >= 60 ? colors.warning : colors.error;
+  const color     = score >= 80 ? colors.success : score >= 60 ? colors.warning : colors.error;
+  const animVal   = useRef(new Animated.Value(0)).current;
+  const [display, setDisplay] = useState(0);
+
+  useEffect(() => {
+    Animated.timing(animVal, {
+      toValue:        score,
+      duration:       900,
+      delay:          200,
+      useNativeDriver: false,   // must be false — drives text content
+    }).start();
+
+    const listener = animVal.addListener(({ value }) => {
+      setDisplay(Math.round(value));
+    });
+    return () => animVal.removeListener(listener);
+  }, [score]);
+
   return (
     <View style={[s.ring, { borderColor: color }]}>
-      <Text style={[s.ringScore, { color }]}>{score}</Text>
+      <Text style={[s.ringScore, { color }]}>{display}</Text>
       <Text style={s.ringLabel}>/ 100</Text>
     </View>
   );
