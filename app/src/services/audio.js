@@ -8,54 +8,94 @@
  * No extra hardware required — but sounds noticeably better through
  * AirPods or earbuds since the coaching feels like it's coming from
  * a real instructor right next to you.
+ *
+ * iOS audio fix:
+ *   AVSpeechSynthesizer does NOT inherit the expo-av audio session by
+ *   default. Playing a tiny silent WAV through Audio.Sound first forces
+ *   the iOS .playback session to activate, after which Speech.speak()
+ *   respects the session (plays through speaker even in silent mode).
  */
 import * as Speech from 'expo-speech';
 import { Audio } from 'expo-av';
 
 // ── Voice settings ────────────────────────────────────────────────────────────
-// These settings are tuned to sound like a calm, clear instructor.
 // Rate 0.88 = slightly slower than normal speech — easier to follow on the range.
 const VOICE_OPTIONS = {
   rate:   0.88,
   pitch:  1.0,
   volume: 1.0,
-  // iOS: prefer a natural-sounding voice
-  // Android: uses the system TTS engine (Google TTS recommended)
 };
 
-// ── iOS audio session setup ───────────────────────────────────────────────────
-// playsInSilentModeIOS: true overrides the hardware mute/silent switch on iOS
-// so coaching audio plays even when the phone is silenced on the course.
-// We only pass the one flag that matters — extra parameters can throw on some
-// expo-av versions, and we'd rather fail silently than block speech.
-let _audioSessionConfigured = false;
+// ── Silent WAV primer ─────────────────────────────────────────────────────────
+// A minimal valid WAV file: 44-byte header + 0.1 s of silence at 8 kHz mono.
+// Playing this through Audio.Sound activates the iOS .playback audio session
+// so that Speech.speak() inherits it and plays out loud even on silent mode.
+const SILENT_WAV_URI =
+  'data:audio/wav;base64,' +
+  'UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YSADAAA' +
+  'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' +
+  'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' +
+  'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' +
+  'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' +
+  'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' +
+  'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' +
+  'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' +
+  'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' +
+  'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' +
+  'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' +
+  'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' +
+  'AAAAAAAAAA==';
 
-async function _configureAudioSession() {
-  if (_audioSessionConfigured) return;
+// ── iOS audio session setup ───────────────────────────────────────────────────
+// Configure the session once. playsInSilentModeIOS overrides the hardware
+// mute switch so coaching plays even when the phone is silenced on the course.
+let _sessionReady = false;
+
+async function _ensureAudioSession() {
+  if (_sessionReady) return;
   try {
-    await Audio.setAudioModeAsync({
-      playsInSilentModeIOS: true,
-    });
-    _audioSessionConfigured = true;
+    await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+    _sessionReady = true;
   } catch (err) {
     console.warn('[SwingCoach] Audio session config failed:', err?.message ?? err);
   }
 }
 
-// Call once on module load so the session is ready before the user taps Play
-_configureAudioSession();
+/**
+ * Play a zero-duration silent sound to force iOS to activate the .playback
+ * audio session before Speech.speak() is called.
+ * This is the key fix for "no sound on iOS silent mode".
+ */
+async function _primeiOSAudio() {
+  try {
+    await _ensureAudioSession();
+    const { sound } = await Audio.Sound.createAsync(
+      { uri: SILENT_WAV_URI },
+      { shouldPlay: false, volume: 0 },
+    );
+    await sound.playAsync();
+    // Give it a tick to register with the OS, then release
+    await new Promise((r) => setTimeout(r, 120));
+    await sound.stopAsync();
+    await sound.unloadAsync();
+  } catch (err) {
+    // Non-fatal — speech may still work
+    console.warn('[SwingCoach] Silent primer failed:', err?.message ?? err);
+  }
+}
+
+// Pre-warm the audio session on module load
+_ensureAudioSession();
 
 // State
-let _speaking    = false;
-let _onDone      = null;
-let _onProgress  = null;
+let _speaking = false;
 
 // ── Core functions ────────────────────────────────────────────────────────────
 
 /**
  * Speak the full coaching script from an analysis result.
  * @param {string}   script      - The coaching_script from the API
- * @param {function} onProgress  - Called with (current, total) word count
+ * @param {function} onProgress  - Called with (current, total) word count (not used by expo-speech, reserved)
  * @param {function} onDone      - Called when speech finishes
  */
 export async function speakCoachingScript(script, onProgress, onDone) {
@@ -64,15 +104,10 @@ export async function speakCoachingScript(script, onProgress, onDone) {
     return;
   }
 
-  // Stop anything currently playing
   await stopSpeaking();
+  await _primeiOSAudio();
 
-  // Configure iOS audio session so audio plays even with the silent switch on
-  await _configureAudioSession();
-
-  _speaking   = true;
-  _onDone     = onDone;
-  _onProgress = onProgress;
+  _speaking = true;
 
   Speech.speak(script, {
     ...VOICE_OPTIONS,
@@ -85,7 +120,7 @@ export async function speakCoachingScript(script, onProgress, onDone) {
     },
     onError: (err) => {
       _speaking = false;
-      console.warn('Speech error:', err);
+      console.warn('[SwingCoach] Speech error:', err);
       onDone?.();
     },
   });
@@ -98,7 +133,7 @@ export async function speakCoachingScript(script, onProgress, onDone) {
  */
 export async function speakQuickSummary(score, proName) {
   await stopSpeaking();
-  await _configureAudioSession();
+  await _primeiOSAudio();
   const line = scoreToLine(score, proName);
   Speech.speak(line, { ...VOICE_OPTIONS, rate: 0.92 });
 }
@@ -109,7 +144,7 @@ export async function speakQuickSummary(score, proName) {
  */
 export async function speakDrill(drill) {
   await stopSpeaking();
-  await _configureAudioSession();
+  await _primeiOSAudio();
   const text = `${drill.title}. ${drill.instructions} ${drill.reps ? `Do ${drill.reps}.` : ''}`;
   Speech.speak(text, VOICE_OPTIONS);
 }
@@ -119,10 +154,10 @@ export async function speakDrill(drill) {
  */
 export async function stopSpeaking() {
   _speaking = false;
-  const isSpeaking = await Speech.isSpeakingAsync();
-  if (isSpeaking) {
-    await Speech.stop();
-  }
+  try {
+    const isSpeaking = await Speech.isSpeakingAsync();
+    if (isSpeaking) await Speech.stop();
+  } catch (_) {}
 }
 
 /**

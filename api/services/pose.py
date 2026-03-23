@@ -239,6 +239,21 @@ def _annotate_frame(frame: "np.ndarray", landmarks, phase_name: str) -> str:
             annotated = annotated[crop_y0:crop_y1, crop_x0:crop_x1]
         # else: fall back to full frame
 
+        # ── Pad to 3:2 landscape so the full body is visible in the app ──────
+        # resizeMode="cover" with a fixed-height container clips portrait images
+        # to their centre — adding dark side bars produces a landscape image
+        # that cover-fits without any cropping.
+        out_h, out_w = annotated.shape[:2]
+        if out_h > 0 and out_w > 0 and (out_w / out_h) < (3.0 / 2.0):
+            target_w = int(out_h * 3.0 / 2.0)
+            pad_total = target_w - out_w
+            pad_l = pad_total // 2
+            pad_r = pad_total - pad_l
+            annotated = cv2.copyMakeBorder(
+                annotated, 0, 0, pad_l, pad_r,
+                cv2.BORDER_CONSTANT, value=(8, 14, 24)
+            )
+
         # Phase label overlay
         label = phase_name.replace("_", " ").upper()
         lbl_w = len(label) * 10 + 18

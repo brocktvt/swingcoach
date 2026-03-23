@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
   SafeAreaView, ScrollView, Alert, ActivityIndicator,
@@ -14,13 +14,18 @@ const CLUB_TYPES = [
   { id: 'putter', label: 'Putter',  emoji: '🕳️' },
 ];
 
-// Fallback pro list (replaced by API once backend is live)
+// Full fallback list — used if the API is unreachable
 const FALLBACK_PROS = [
-  { id: 'rory_mcilroy',  name: 'Rory McIlroy',  note: 'Powerful rotation, consistent tempo' },
-  { id: 'tiger_woods',   name: 'Tiger Woods',   note: 'Textbook fundamentals, elite precision' },
-  { id: 'adam_scott',    name: 'Adam Scott',    note: 'Smooth, upright — great for amateurs to copy' },
-  { id: 'jon_rahm',      name: 'Jon Rahm',      note: 'Compact backswing, powerful through impact' },
-  { id: 'nelly_korda',   name: 'Nelly Korda',   note: 'Tour-perfect tempo and balance' },
+  { id: 'rory_mcilroy',       name: 'Rory McIlroy',       note: 'Powerful rotation, wide arc, elite hip clearance' },
+  { id: 'tiger_woods',        name: 'Tiger Woods',        note: 'Textbook fundamentals, aggressive hip drive' },
+  { id: 'adam_scott',         name: 'Adam Scott',         note: 'Smooth, upright — easiest swing for amateurs to model' },
+  { id: 'jon_rahm',           name: 'Jon Rahm',           note: 'Compact backswing, explosive power through impact' },
+  { id: 'nelly_korda',        name: 'Nelly Korda',        note: 'Tour-perfect tempo and balance' },
+  { id: 'scottie_scheffler',  name: 'Scottie Scheffler',  note: 'World #1 — ultra-consistent, methodical ball-striker' },
+  { id: 'collin_morikawa',    name: 'Collin Morikawa',    note: 'Elite iron accuracy and face control' },
+  { id: 'dustin_johnson',     name: 'Dustin Johnson',     note: 'Exceptional length, bowed lead wrist, athletic build' },
+  { id: 'xander_schauffele',  name: 'Xander Schauffele',  note: 'Smooth all-round swing, great tempo and reliable fade' },
+  { id: 'lydia_ko',           name: 'Lydia Ko',           note: 'Technically refined, consistent, accuracy-focused' },
 ];
 
 function Chip({ label, emoji, selected, onPress }) {
@@ -52,6 +57,16 @@ export default function CameraScreen({ navigation }) {
   const [proRef,        setProRef]        = useState('rory_mcilroy');
   const [uploading,     setUploading]     = useState(false);
   const [uploadPct,     setUploadPct]     = useState(0);
+  const [proList,       setProList]       = useState(FALLBACK_PROS);
+
+  // Load pro list from API (includes newly added pros)
+  useEffect(() => {
+    pros.list()
+      .then((list) => {
+        if (list?.length > 0) setProList(list);
+      })
+      .catch(() => {/* use fallback */});
+  }, []);
 
   const pickVideo = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -136,7 +151,7 @@ export default function CameraScreen({ navigation }) {
 
         {/* Pro selection */}
         <Text style={s.label}>Compare against</Text>
-        {FALLBACK_PROS.map((p) => (
+        {proList.map((p) => (
           <ProCard
             key={p.id}
             pro={p}
