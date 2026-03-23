@@ -112,6 +112,7 @@ export default function ProfileScreen({ navigation }) {
   const [editing, setEditing] = useState(false);
 
   // Edit fields
+  const [firstName,    setFirstName]    = useState('');
   const [handicap,     setHandicap]     = useState('');
   const [rounds,       setRounds]       = useState('');
   const [age,          setAge]          = useState('');
@@ -127,6 +128,7 @@ export default function ProfileScreen({ navigation }) {
       setProfileLoading(true);
       const data = await profileApi.get();
       setGolferProfile(data);
+      setFirstName(data.first_name || '');
       setHandicap(data.handicap != null ? String(data.handicap) : '');
       setRounds(data.rounds_per_year != null ? String(data.rounds_per_year) : '');
       setAge(data.age != null ? String(data.age) : '');
@@ -151,6 +153,7 @@ export default function ProfileScreen({ navigation }) {
     try {
       const heightIn = feetInchesToIn(heightFeet, heightInches);
       const payload = { handedness };
+      if (firstName.trim() !== '') payload.first_name = firstName.trim();
       if (handicap !== '')  payload.handicap        = parseFloat(handicap);
       if (rounds !== '')    payload.rounds_per_year = parseInt(rounds, 10);
       if (age !== '')       payload.age             = parseInt(age, 10);
@@ -201,6 +204,9 @@ export default function ProfileScreen({ navigation }) {
         {/* Avatar */}
         <View style={s.avatar}>
           <Text style={s.avatarEmoji}>⛳</Text>
+          {golferProfile?.first_name ? (
+            <Text style={s.displayName}>{golferProfile.first_name}</Text>
+          ) : null}
           <Text style={s.email}>{user?.email}</Text>
           <View style={[s.badge, isPro ? s.badgePro : s.badgeFree]}>
             <Text style={s.badgeText}>{isPro ? '★ PRO' : 'FREE'}</Text>
@@ -235,6 +241,7 @@ export default function ProfileScreen({ navigation }) {
             <ActivityIndicator color={colors.teal} style={{ marginVertical: spacing.md }} />
           ) : editing ? (
             <View style={s.sectionCard}>
+              <EditRow label="First name" value={firstName} placeholder="e.g. Brock" onChangeText={setFirstName} />
               <ChipRow label="Dominant hand" options={handednessOptions} value={handedness} onChange={setHandedness} />
               <EditRow label="Handicap" value={handicap} placeholder="e.g. 14.5  (leave blank if none)" onChangeText={setHandicap} keyboardType="decimal-pad" />
               <EditRow label="Rounds / year" value={rounds} placeholder="e.g. 20" onChangeText={setRounds} keyboardType="number-pad" />
@@ -266,6 +273,7 @@ export default function ProfileScreen({ navigation }) {
             </View>
           ) : hasProfile ? (
             <View style={s.sectionCard}>
+              {golferProfile.first_name && <Row label="Name" value={golferProfile.first_name} />}
               <Row label="Dominant hand" value={handedness === 'right' ? 'Right-handed' : 'Left-handed'} />
               <Row label="Handicap"      value={golferProfile.handicap != null ? String(golferProfile.handicap) : 'None'} />
               {golferProfile.rounds_per_year != null && <Row label="Rounds / year" value={String(golferProfile.rounds_per_year)} />}
@@ -341,6 +349,7 @@ const s = StyleSheet.create({
 
   avatar:      { alignItems: 'center', marginBottom: spacing.xl },
   avatarEmoji: { fontSize: 56, marginBottom: spacing.md },
+  displayName: { fontSize: 22, fontWeight: '700', color: colors.white, marginBottom: 4 },
   email:       { fontSize: 15, color: colors.grey1, marginBottom: spacing.sm },
   badge:       { borderRadius: radius.full, paddingHorizontal: 14, paddingVertical: 4 },
   badgePro:    { backgroundColor: colors.teal },

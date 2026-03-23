@@ -29,8 +29,8 @@ async def create_tables():
 _MIGRATIONS = [
     # user_profiles: secondary_goal added after initial deploy
     "ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS secondary_goal VARCHAR",
-    # user_profiles: ensure the whole table exists even if create_all missed it
-    # (the CREATE TABLE is handled by create_all above; these are column-level safety nets)
+    # user_profiles: first_name added so coaching script can address the golfer by name
+    "ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS first_name VARCHAR",
 ]
 
 async def run_migrations():
@@ -66,6 +66,7 @@ class UserProfile(Base):
     __tablename__ = "user_profiles"
 
     user_id         = Column(String, ForeignKey("users.id"), primary_key=True)
+    first_name      = Column(String,  nullable=True)   # optional — used in coaching script
     handicap        = Column(Float,   nullable=True)   # None = "I don't have one"
     rounds_per_year = Column(Integer, nullable=True)
     age             = Column(Integer, nullable=True)

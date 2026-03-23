@@ -22,6 +22,7 @@ router = APIRouter(prefix="/profile", tags=["profile"])
 # ── Pydantic schemas ──────────────────────────────────────────────────────────
 
 class ProfileUpdate(BaseModel):
+    first_name:      Optional[str]    = Field(None, max_length=50, description="Golfer's first name — used to personalise the coaching script")
     handicap:        Optional[float]  = Field(None, ge=0,  le=54,  description="Handicap index. Null = 'I don't have one'")
     rounds_per_year: Optional[int]    = Field(None, ge=0,  le=500)
     age:             Optional[int]    = Field(None, ge=5,  le=100)
@@ -203,6 +204,7 @@ def suggest_pro(
 def _profile_response(profile: Optional[UserProfile], suggested: str) -> dict:
     pro = PRO_REFERENCES.get(suggested, {})
     return {
+        "first_name":      profile.first_name      if profile else None,
         "handicap":        profile.handicap        if profile else None,
         "rounds_per_year": profile.rounds_per_year if profile else None,
         "age":             profile.age             if profile else None,

@@ -117,8 +117,18 @@ Your analysis should:
 - Prioritize issues by impact: what will actually lower their scores fastest?
 - Reference the pro's specific strengths when noting differences
 - Always find genuine positives — even a beginner has something worth reinforcing
+- If the golfer's name is provided, address them by name naturally throughout the coaching_script (not every sentence — 2-3 times feels natural, like a real instructor)
 - The coaching_script must sound like a real instructor talking, not a bullet list being read aloud.
   Write it conversationally: warm, direct, specific. It will be spoken through the user's phone speaker or earbuds.
+
+CRITICAL — VARIETY IN EVERY RESPONSE:
+Every coaching script must feel distinct. Vary all of the following:
+- Your opening line: never start two scripts the same way. Rotate between openers that focus on the score, the best thing you saw, the biggest opportunity, a comparison to the pro, or a quick summary of what the round of analysis showed.
+- Your structure: sometimes lead with the positive, sometimes jump straight to the key fix, sometimes set context first.
+- Your analogies and cue words: draw from a wide pool (e.g. "feel like you're sitting into a chair", "push the ground away", "keep the triangle intact", "fire the hips before the shoulders", "stack your weight over your lead foot" etc.)
+- Your sign-off: vary between motivational, tactical, and reflective closes.
+- Sentence rhythm: mix short punchy sentences with longer explanatory ones.
+Never re-use the same opening sentence, drill instruction, or sign-off across different analyses.
 
 Always respond with valid JSON matching the exact schema provided."""
 
@@ -129,6 +139,9 @@ def _golfer_profile_block(profile: dict | None) -> str:
         return ""
 
     lines = ["GOLFER PROFILE:"]
+
+    if profile.get("first_name"):
+        lines.append(f"  Name: {profile['first_name']} (address them by name 2-3 times in the coaching_script)")
 
     if profile.get("handicap") is not None:
         hcp = profile["handicap"]
