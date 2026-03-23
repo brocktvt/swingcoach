@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView,
-  TouchableOpacity, ActivityIndicator, Image,
+  TouchableOpacity, ActivityIndicator, Image, Share, Platform,
 } from 'react-native';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as FileSystem from 'expo-file-system';
 import { colors, spacing, radius, shadow } from '../theme';
 import { analysis } from '../services/api';
 import { API_BASE_URL } from '../services/api';
@@ -15,6 +16,74 @@ import {
   stopSpeaking,
   buildFallbackScript,
 } from '../services/audio';
+
+// ── Share helpers ─────────────────────────────────────────────────────────────
+
+/**
+ * Share the full text coaching summary via the native iOS/Android share sheet.
+ * Works with Messages, Mail, Notes, social apps — anything that accepts text.
+ */
+async function shareAnalysisSummary(data) {
+  try {
+    const club    = data.club_type?.charAt(0).toUpperCase() + data.club_type?.slice(1);
+    const score   = data.overall_score;
+    const pros    = (data.positives || []).slice(0, 3).map(p => `✓ ${p.title}`).join('\n');
+    const fixes   = (data.issues   || []).slice(0, 2).map(i => `⚠ ${i.title}`).join('\n');
+    const drill   = (data.drills   || [])[0];
+
+    const lines = [
+      `🏌️ Pocket Golf Coach — Swing Analysis`,
+      `Score: ${score}/100  ·  ${club} vs ${data.pro_name}`,
+      ``,
+      data.summary || '',
+      pros  ? `\nWhat's working:\n${pros}`   : '',
+      fixes ? `\nWorking on:\n${fixes}`       : '',
+      drill ? `\nTop drill: ${drill.title}`   : '',
+      ``,
+      `Analyzed with Pocket Golf Coach 🏌️`,
+    ].filter(l => l !== null && l !== undefined);
+
+    await Share.share({ message: lines.join('\n') });
+  } catch (e) {
+    if (e.message !== 'The user did not share') {
+      console.warn('[SwingCoach] Share failed:', e);
+    }
+  }
+}
+
+/**
+ * Save a base64 JPEG to the device cache and open the native share sheet.
+ * On iOS the image goes straight to Photos, Messages, Instagram, etc.
+ * caption is optional extra text shown in apps that accept both image + text.
+ */
+async function sharePhaseImage(b64, phase, caption = '') {
+  try {
+    const fname = `swing_${phase}_${Date.now()}.jpg`;
+    const uri   = FileSystem.cacheDirectory + fname;
+    await FileSystem.writeAsStringAsync(uri, b64, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+
+    const text = [
+      caption,
+      `Phase: ${phase.replace(/_/g, ' ')}`,
+      ``,
+      `🏌️ Analyzed with Pocket Golf Coach`,
+    ].filter(Boolean).join('\n');
+
+    if (Platform.OS === 'ios') {
+      // iOS Share accepts both url (file) and message (text) simultaneously
+      await Share.share({ url: uri, message: text });
+    } else {
+      // Android: share the file URI as the message; some apps read it as an attachment
+      await Share.share({ message: `${text}\n${uri}` });
+    }
+  } catch (e) {
+    if (e.message !== 'The user did not share') {
+      console.warn('[SwingCoach] Image share failed:', e);
+    }
+  }
+}
 
 // ── Score ring ────────────────────────────────────────────────────────────────
 function ScoreRing({ score }) {
@@ -28,7 +97,7 @@ function ScoreRing({ score }) {
 }
 
 // ── Phase media: still image + swipeable video clip ───────────────────────────
-function PhaseMedia({ phase, phaseImages, analysisId }) {
+function PhaseMedia({ phase, phaseImages, analysisId, shareCaption }) {
   const b64 = phaseImages?.[phase];
   const [page, setPage]           = useState(0);
   const [pageWidth, setPageWidth] = useState(0);
@@ -106,6 +175,14 @@ function PhaseMedia({ phase, phaseImages, analysisId }) {
               {phase.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
             </Text>
           </View>
+          {/* Share button — bottom-left */}
+          <TouchableOpacity
+            style={s.imgShareBtn}
+            onPress={() => sharePhaseImage(b64, phase, shareCaption)}
+          >
+            <Text style={s.imgShareIcon}>📤</Text>
+          </TouchableOpacity>
+
           {/* Nudge hint — only show if analysis has a video to offer */}
           {analysisId && (
             <View style={s.swipeHint}>
@@ -165,7 +242,12 @@ function PositiveCard({ item, phaseImages, analysisId }) {
         <Text style={s.positiveCheck}>✓</Text>
         <Text style={s.positiveTitle}>{item.title}</Text>
       </View>
-      <PhaseMedia phase={item.phase} phaseImages={phaseImages} analysisId={analysisId} />
+      <PhaseMedia
+        phase={item.phase}
+        phaseImages={phaseImages}
+        analysisId={analysisId}
+        shareCaption={`✓ ${item.title}\n${item.description || ''}`}
+      />
       <Text style={s.positiveBody}>{item.description}</Text>
       {item.phase && (
         <View style={s.phaseTag}>
@@ -190,7 +272,12 @@ function IssueCard({ issue, phaseImages, analysisId }) {
         <View style={[s.severityDot, { backgroundColor: severityColor }]} />
         <Text style={s.issueTitle}>{issue.title}</Text>
       </View>
-      <PhaseMedia phase={issue.phase} phaseImages={phaseImages} analysisId={analysisId} />
+      <PhaseMedia
+        phase={issue.phase}
+        phaseImages={phaseImages}
+        analysisId={analysisId}
+        shareCaption={`⚠ ${issue.title}\n${issue.description || ''}`}
+      />
       <Text style={s.issueBody}>{issue.description}</Text>
       {issue.phase && (
         <View style={s.phaseTag}>
@@ -369,6 +456,13 @@ export default function ResultsScreen({ route, navigation }) {
               })}
             </Text>
           </View>
+          <TouchableOpacity
+            style={s.summaryShareBtn}
+            onPress={() => shareAnalysisSummary(data)}
+          >
+            <Text style={s.summaryShareIcon}>📤</Text>
+            <Text style={s.summaryShareLabel}>Share</Text>
+          </TouchableOpacity>
         </View>
 
         {/* AI Summary text */}
@@ -500,6 +594,18 @@ const s = StyleSheet.create({
   summaryClub: { fontSize: 18, fontWeight: '800', color: colors.white },
   summaryPro:  { fontSize: 13, color: colors.tealLight, marginTop: 2 },
   summaryDate: { fontSize: 12, color: colors.grey2, marginTop: 4 },
+  summaryShareBtn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.grey3,
+    gap: 2,
+  },
+  summaryShareIcon:  { fontSize: 18 },
+  summaryShareLabel: { fontSize: 10, color: colors.grey2, fontWeight: '600' },
 
   summaryText: {
     backgroundColor: colors.bgCard,
@@ -617,6 +723,16 @@ const s = StyleSheet.create({
     borderRadius: radius.full,
   },
   swipeHintText: { fontSize: 10, color: colors.grey2 },
+  imgShareBtn: {
+    position: 'absolute',
+    bottom: 6,
+    left: 8,
+    backgroundColor: 'rgba(8,14,24,0.65)',
+    borderRadius: radius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  imgShareIcon: { fontSize: 14 },
 
   clipPlaceholder: {
     flex: 1,
