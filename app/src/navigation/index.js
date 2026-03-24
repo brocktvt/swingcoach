@@ -23,15 +23,7 @@ import RegisterScreen    from '../screens/RegisterScreen';
 import HomeScreen        from '../screens/HomeScreen';
 import CameraScreen      from '../screens/CameraScreen';
 import ProcessingScreen  from '../screens/ProcessingScreen';
-// ResultsScreen temporarily stubbed out to isolate crash source
-function ResultsScreen() {
-  return (
-    <View style={{ flex: 1, backgroundColor: '#080e18', alignItems: 'center', justifyContent: 'center' }}>
-      <Text style={{ color: '#4ecdc4', fontSize: 16 }}>Results coming soon</Text>
-    </View>
-  );
-}
-// import ResultsScreen from '../screens/ResultsScreen';
+import ResultsScreen     from '../screens/ResultsScreen';
 import HistoryScreen     from '../screens/HistoryScreen';
 import ProfileScreen     from '../screens/ProfileScreen';
 import PaywallScreen     from '../screens/PaywallScreen';

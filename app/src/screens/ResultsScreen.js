@@ -3,11 +3,37 @@ import {
   View, Text, StyleSheet, SafeAreaView, ScrollView,
   TouchableOpacity, ActivityIndicator, Image, Share, Platform, Animated,
 } from 'react-native';
-import { VideoView, useVideoPlayer } from 'expo-video';
-import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
+// Defensive requires for native modules that may not be available on all builds
+let VideoView, useVideoPlayer;
+try {
+  const expoVideo = require('expo-video');
+  VideoView = expoVideo.VideoView;
+  useVideoPlayer = expoVideo.useVideoPlayer;
+} catch (e) {
+  console.warn('expo-video unavailable:', e.message);
+  VideoView = ({ style }) => <View style={style} />;
+  useVideoPlayer = () => ({ replace: () => {}, pause: () => {} });
+}
+
+let activateKeepAwakeAsync = async () => {};
+let deactivateKeepAwake = () => {};
+try {
+  const keepAwake = require('expo-keep-awake');
+  activateKeepAwakeAsync = keepAwake.activateKeepAwakeAsync;
+  deactivateKeepAwake = keepAwake.deactivateKeepAwake;
+} catch (e) {
+  console.warn('expo-keep-awake unavailable:', e.message);
+}
+
+let Clipboard = { setStringAsync: async () => {} };
+try {
+  Clipboard = require('expo-clipboard');
+} catch (e) {
+  console.warn('expo-clipboard unavailable:', e.message);
+}
+
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system';
-import * as Clipboard from 'expo-clipboard';
 import { colors, spacing, radius, shadow } from '../theme';
 import { analysis } from '../services/api';
 import { API_BASE_URL } from '../services/api';
