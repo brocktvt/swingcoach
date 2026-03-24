@@ -15,9 +15,15 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     (async () => {
-      const u = await auth.getUser();
-      setUser(u);
-      setLoading(false);
+      try {
+        const u = await auth.getUser();
+        setUser(u);
+      } catch (e) {
+        console.error('Auth init error:', e);
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
     })();
   }, []);
 
