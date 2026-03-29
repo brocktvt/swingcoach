@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, ScrollView,
-  TouchableOpacity, ActivityIndicator, Image, Share, Platform, Animated,
+  TouchableOpacity, ActivityIndicator, Image, Share, Platform, Animated, Linking,
 } from 'react-native';
 // Defensive requires for native modules that may not be available on all builds
 let VideoView, useVideoPlayer;
@@ -12,7 +12,7 @@ try {
 } catch (e) {
   console.warn('expo-video unavailable:', e.message);
   VideoView = ({ style }) => <View style={style} />;
-  useVideoPlayer = () => ({ replace: () => {}, pause: () => {} });
+  useVideoPlayer = () => ({ replace: () => {}, pause: () => {}, play: () => {} });
 }
 
 let activateKeepAwakeAsync = async () => {};
@@ -166,8 +166,13 @@ function PhaseMedia({ phase, phaseImages, analysisId, shareCaption }) {
     try {
       const token = await AsyncStorage.getItem('auth_token');
       const url = `${API_BASE_URL}/analyses/${analysisId}/clip/${phase}?token=${encodeURIComponent(token)}`;
+      // Pre-validate: if the video file is gone (Railway restarts wipe /tmp),
+      // we get a 404 here instead of a silent black screen from expo-video.
+      const check = await fetch(url, { method: 'HEAD' });
+      if (!check.ok) throw new Error(`HTTP ${check.status}`);
       player.replace({ uri: url });
-      player.play();
+      // Do NOT call player.play() here — the page-change useEffect handles
+      // playback once the source is loaded and we're on the video page.
       setClipReady(true);
     } catch (e) {
       console.warn('[SwingCoach] Clip load failed:', e);
@@ -177,14 +182,16 @@ function PhaseMedia({ phase, phaseImages, analysisId, shareCaption }) {
     }
   };
 
-  // Stop video when scrolled back to still image
+  // Pause/play based on visible page AND when the clip first becomes ready.
+  // clipReady in deps ensures play() fires as soon as the source is loaded,
+  // even if the user was already on page 1 while the HEAD check was running.
   useEffect(() => {
     if (page === 0 && clipReady) {
       try { player.pause(); } catch (_) {}
     } else if (page === 1 && clipReady) {
       try { player.play(); } catch (_) {}
     }
-  }, [page]);
+  }, [page, clipReady]);
 
   if (!b64) return null;
 
@@ -359,6 +366,15 @@ function DrillCard({ drill, index, onSpeak }) {
             <Text style={s.fixesTagText}>Fixes: {drill.fixes_issue}</Text>
           </View>
         )}
+        <TouchableOpacity
+          style={s.ytBtn}
+          onPress={() => {
+            const query = encodeURIComponent('golf ' + drill.title + ' drill');
+            Linking.openURL('https://www.youtube.com/results?search_query=' + query);
+          }}
+        >
+          <Text style={s.ytBtnText}>▶ Watch on YouTube</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -878,6 +894,15 @@ const s = StyleSheet.create({
     borderColor: colors.teal,
   },
   fixesTagText:  { fontSize: 11, color: colors.tealLight },
+  ytBtn: {
+    marginTop: 10,
+    alignSelf: 'flex-start',
+    backgroundColor: '#FF0000',
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  ytBtnText: { fontSize: 12, color: '#fff', fontWeight: '600' },
   drillsTip: {
     backgroundColor: colors.bgAlt,
     borderRadius: radius.md,

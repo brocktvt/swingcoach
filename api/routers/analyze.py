@@ -5,8 +5,9 @@ import uuid, json, aiofiles, io, tempfile, asyncio
 from datetime import datetime
 from pathlib import Path
 from functools import lru_cache
-from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, Query
-from fastapi.responses import StreamingResponse
+from typing import Optional
+from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, Query, Request
+from fastapi.responses import StreamingResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from jose import jwt, JWTError
@@ -61,11 +62,13 @@ def _check_limit(user: User):
 # ── POST /analyze ─────────────────────────────────────────────────────────────
 @router.post("/analyze")
 async def analyze_swing(
-    video:         UploadFile = File(...),
-    club_type:     str        = Form("driver"),
-    pro_reference: str        = Form("rory_mcilroy"),
-    user:          User       = Depends(current_user),
-    db:            AsyncSession = Depends(get_db),
+    video:         UploadFile      = File(...),
+    club_type:     str             = Form("driver"),
+    pro_reference: str             = Form("rory_mcilroy"),
+    trim_start_s:  Optional[float] = Form(None),
+    trim_end_s:    Optional[float] = Form(None),
+    user:          User            = Depends(current_user),
+    db:            AsyncSession    = Depends(get_db),
 ):
     _check_limit(user)
 
@@ -85,7 +88,12 @@ async def analyze_swing(
 
     # Run pose extraction
     try:
-        pose_data = extract_pose_data(str(video_path))
+        pose_data = extract_pose_data(
+            str(video_path),
+            trim_start_s=trim_start_s,
+            trim_end_s=trim_end_s,
+            pro_id=pro_reference,
+        )
     except Exception as e:
         video_path.unlink(missing_ok=True)
         raise HTTPException(status_code=422, detail=f"Could not process video: {e}")
@@ -302,6 +310,7 @@ async def get_phase_clip(
     analysis_id: str,
     phase_name:  str,
     token:       str = Query(..., description="JWT access token"),
+    request:     Request = None,
     db:          AsyncSession = Depends(get_db),
 ):
     # Verify token manually (no Bearer header — expo-video fetches plain URLs)
@@ -341,12 +350,41 @@ async def get_phase_clip(
         )
         _clip_cache[cache_key] = clip_bytes
 
-    data = _clip_cache[cache_key]
-    return StreamingResponse(
-        io.BytesIO(data),
+    data  = _clip_cache[cache_key]
+    total = len(data)
+
+    # iOS AVPlayer always sends a Range header and requires 206 Partial Content.
+    # Returning 200 OK causes AVPlayer to silently reject the stream.
+    range_header = request.headers.get("range") if request else None
+    if range_header:
+        try:
+            range_val = range_header.replace("bytes=", "").strip()
+            parts     = range_val.split("-")
+            start     = int(parts[0]) if parts[0] else 0
+            end       = int(parts[1]) if len(parts) > 1 and parts[1] else total - 1
+        except (ValueError, IndexError):
+            start, end = 0, total - 1
+        end   = min(end, total - 1)
+        chunk = data[start : end + 1]
+        return Response(
+            chunk,
+            status_code=206,
+            media_type="video/mp4",
+            headers={
+                "Content-Range":  f"bytes {start}-{end}/{total}",
+                "Accept-Ranges":  "bytes",
+                "Content-Length": str(len(chunk)),
+                "Cache-Control":  "private, max-age=3600",
+            },
+        )
+
+    # No Range header — return full video
+    return Response(
+        data,
+        status_code=200,
         media_type="video/mp4",
         headers={
-            "Content-Length": str(len(data)),
+            "Content-Length": str(total),
             "Accept-Ranges":  "bytes",
             "Cache-Control":  "private, max-age=3600",
         },
